@@ -18,10 +18,7 @@ env:
   hybridInitProb: 0.5
   dataFPS: 30
   dataFramesScale: 1 # 25->30fps
-  dataSub: ['sub1', 'sub2', 'sub3', 'sub4', 'sub5',
-            'sub6', 'sub7', 'sub8', 'sub9', 'sub10',
-            'sub11', 'sub12', 'sub13', 'sub14', 'sub15',
-            'sub16', 'sub17']
+  dataSub: ['sub8']
   ballSize: 1.
   numObs: 2153
   numDoF: 43

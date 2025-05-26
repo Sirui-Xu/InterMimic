@@ -1,1 +1,0 @@
-python intermimic/run.py --task InterMimic --cfg_env intermimic/data/cfg/omomo_high_fid.yaml --cfg_train intermimic/data/cfg/train/rlg/omomo.yaml --test --checkpoint checkpoints/smplx_teachers/sub2_high_fid.pth --num_envs 16

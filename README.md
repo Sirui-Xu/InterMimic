@@ -7,7 +7,7 @@
     <a href='https://yxw.web.illinois.edu/' target='_blank'>Yu-Xiong Wang</a><sup><img src="assets/Illinois.jpg" align="center" width=2% ></sup>&emsp;
     <a href='https://lgui.web.illinois.edu/' target='_blank'>Liang-Yan Gui</a><sup><img src="assets/Illinois.jpg" align="center" width=2% ></sup>&emsp;
     <br>
-    <sup><img src="assets/Illinois.jpg" align="center" width=2% ></sup>University of Illinois Urbana Champaign, <sup><img src="assets/Electronic-Arts-Logo.png" align="center" width=1.5% ></sup> Electronic Arts
+    <sup><img src="assets/Illinois.jpg" align="center" width=2% ></sup>University of Illinois Urbana-Champaign, <sup><img src="assets/Electronic-Arts-Logo.png" align="center" width=1.5% ></sup> Electronic Arts
     <br>
     <strong>CVPR 2025 Highlight 🏆</strong>
   </p>
@@ -43,6 +43,7 @@ We introduce InterMimic, a framework that enables a <b>single</b> policy to robu
 </p>
 
 ## 🔥 News
+- **[2025-05-26]** It's been a while! The student policy training pipeline has been released! The PSI and other data construction pipelines will follow soon.
 - **[2025-04-18]** Release a checkpoint with high‑fidelity physics and enhanced contact precision.
 - **[2025-04-11]** The training code for teacher policies is live—try training your own policy!
 - **[2025-04-05]** We're excited by the overwhelming interest in humanoid robot support and are ahead of schedule in open-sourcing our Unitree-G1 integration—starting with a small demo with support for G1 with its original three-finger dexterous hands. Join us in exploring whole-body loco-manipulation with humanoid robots!
@@ -93,7 +94,22 @@ To replay the groud truth data, execute the following commands:
 To train a teacher policy, execute the following commands:
 
   ```bash
-  sh scripts/train.sh
+  sh scripts/train_teacher.sh
+  ```
+
+A higher‑fidelity simulation enough for low-dynamic interaction (trading off some efficiency for realism):
+
+  ```bash
+  sh scripts/train_teacher_new.sh
+  ```
+
+### Student Policy Training
+
+
+To train a student policy with distillation, execute the following commands:
+
+  ```bash
+  sh scripts/train_student.sh
   ```
 
 ### Teacher Policy Inference
@@ -105,19 +121,18 @@ We’ve released a checkpoint for one (out of 17) teacher policy on OMOMO, along
 2. Then, run the following commands:
 
     ```bash
-    sh scripts/test.sh
+    sh scripts/test_teacher.sh
     ```
 
-3. Run the high‑fidelity physics model (trading off some efficiency for realism):
+3. Run the high‑fidelity modeling (trading off some efficiency for realism):
 
     ```bash
-    sh scripts/test_high_fid.sh
+    sh scripts/test_teacher_new.sh
     ```
 
 4. 🔥 To try it on the Unitree G1 with its three-fingered dexterous hand—directly learned from MoCap without any external retargeting:
 
     ```bash
-    conda activate intermimic
     sh scripts/test_g1.sh
     ```
 
@@ -125,7 +140,8 @@ We’ve released a checkpoint for one (out of 17) teacher policy on OMOMO, along
 - [x] Release inference demo for the teacher policy  
 - [x] Add support for Unitree-G1 with dexterous robot hands
 - [x] Release training pipeline for the teacher policy 
-- [ ] Release student policy distillation training, all processed MoCap and distilled reference data (physically correct HOI data❗️), and all related checkpoints  
+- [x] Release student policy distillation training
+- [ ] All processed MoCap and distilled reference data (physically correct HOI data❗️), and all related checkpoints  
 - [ ] Release evaluation pipeline for the student policy  
 - [ ] Release all data and processing scripts alongside the [InterAct](https://github.com/wzyabcas/InterAct) launch  
 - [ ] Release physics-based text-to-HOI and interaction prediction demo  

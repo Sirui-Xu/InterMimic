@@ -79,18 +79,18 @@ class InterMimicBuilder(network_builder.A2CBuilder):
             if self.is_continuous:
                 mu = self.mu_act(self.mu(a_out))
 
-                if torch.any(~torch.isfinite(mu)):
-                    raise Exception("invalid mu")
-                    mu = torch.where(~torch.isfinite(mu), torch.zeros_like(mu), mu)
+                # if torch.any(~torch.isfinite(mu)):
+                #     raise Exception("invalid mu")
+                #     mu = torch.where(~torch.isfinite(mu), torch.zeros_like(mu), mu)
                 
                 if self.space_config['fixed_sigma']:
                     sigma = mu * 0.0 + self.sigma_act(self.sigma)
                 else:
                     sigma = self.sigma_act(self.sigma(a_out))
 
-                if torch.any(~torch.isfinite(sigma)):
-                    raise Exception("invalid sigma")
-                    sigma = torch.where(~torch.isfinite(sigma), torch.zeros_like(sigma), sigma)
+                # if torch.any(~torch.isfinite(sigma)):
+                #     raise Exception("invalid sigma")
+                #     sigma = torch.where(~torch.isfinite(sigma), torch.zeros_like(sigma), sigma)
 
                 return mu, sigma
             return

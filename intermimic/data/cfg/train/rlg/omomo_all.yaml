@@ -38,7 +38,7 @@ params:
 
   config:
     name: mimic
-    full_experiment_name: smplx
+    full_experiment_name: smplx_student
     env_name: rlgpu
     multi_gpu: False
     ppo: True
@@ -62,13 +62,14 @@ params:
     truncate_grads: False
     ppo: True
     e_clip: 0.2
-    horizon_length: 32
-    minibatch_size: 16384
+    horizon_length: 16
+    minibatch_size: 8192
     mini_epochs: 6
     critic_coef: 5
     clip_value: False
     seq_len: 4
     bounds_loss_coef: 10
+    expert_loss_coef: 1
     enable_eps_greedy: False
-    resume_from: checkpoints/smplx_teachers_new/sub2.pth
+    resume_from: checkpoints/smplx_student/nn/mimic.pth
     save_intermediate: False

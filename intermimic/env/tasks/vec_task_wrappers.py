@@ -60,3 +60,31 @@ class VecTaskPythonWrapper(VecTaskPython):
 
     def fetch_amp_obs_demo(self, num_samples):
         return self.task.fetch_amp_obs_demo(num_samples)
+    
+
+class VecTaskDAggerWrapper(VecTaskPythonWrapper):
+    def __init__(self, task, rl_device, clip_observations=5.0, clip_actions=1.0):
+        super().__init__(task, rl_device, clip_observations, clip_actions)
+
+        self._amp_obs_space = spaces.Box(np.ones(task.get_num_amp_obs()) * -np.Inf, np.ones(task.get_num_amp_obs()) * np.Inf)
+        # self._amp_obs_space = spaces.Box(np.ones(task.get_num_amp_obs()+2) * -np.Inf, np.ones(task.get_num_amp_obs()+2) * np.Inf)
+        return
+    
+    def reset(self):
+        actions = 0.01 * (1 - 2 * torch.rand([self.task.num_envs, self.task.num_actions], dtype=torch.float32, device=self.rl_device))
+
+        # step the simulator
+        self.task.step(actions)
+
+        return torch.clamp(self.task.obs_buf_retarget, -self.clip_obs, self.clip_obs).to(self.rl_device), {'actions': self.task.action_buf, 'mus': self.task.mu_buf}
+    
+    def reset(self, env_ids=None):
+        self.task.reset(env_ids)
+        return torch.clamp(self.task.obs_buf_retarget, -self.clip_obs, self.clip_obs).to(self.rl_device), {'actions': self.task.action_buf, 'mus': self.task.mu_buf}
+
+    def step(self, actions):
+        actions_tensor = torch.clamp(actions, -self.clip_actions, self.clip_actions)
+
+        self.task.step(actions_tensor)
+
+        return torch.clamp(self.task.obs_buf_retarget, -self.clip_obs, self.clip_obs).to(self.rl_device), self.task.rew_buf.to(self.rl_device), self.task.reset_buf.to(self.rl_device), self.task.extras, {'actions': self.task.action_buf, 'mus': self.task.mu_buf}

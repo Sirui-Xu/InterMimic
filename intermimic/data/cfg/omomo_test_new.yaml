@@ -21,7 +21,7 @@ env:
   dataSub: ['sub2']
   ballSize: 1.
   numObs: 3198
-  motion_file: InterAct/OMOMO
+  motion_file: InterAct/OMOMO_new
   robotType: "smplx/omomo.xml"
   objectDensity: 1000
   localRootObs: False
@@ -40,7 +40,7 @@ env:
   
   rewardWeights:
     p: 30.
-    r: 2.
+    r: 2.5
     pv: 0.
     rv: 0.
 
@@ -55,9 +55,9 @@ env:
     cg_other: 5.
     cg_all: 3.
 
-    eg1: 0.00005
-    eg2: 0.00005
-    eg3: 0.0000000001
+    eg1: 0.00002
+    eg2: 0.00002
+    eg3: 0.000000001
 
 sim:
   substeps: 6
@@ -70,8 +70,6 @@ sim:
     rest_offset: 0.0
     bounce_threshold_velocity: 0.2
     max_depenetration_velocity: 5.
-    default_buffer_size_multiplier: 20.0
-    max_gpu_contact_pairs: 34603008 # 8*1024*1024
 
   flex:
     num_inner_iterations: 10

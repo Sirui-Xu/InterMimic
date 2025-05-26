@@ -40,16 +40,15 @@ class InterMimic(Humanoid_SMPLX):
         self.motion_file = sorted([os.path.join(self.motion_file, data_path) for data_path in motion_file if data_path.split('_')[0] in cfg['env']['dataSub']])
         self.object_name = [motion_example.split('_')[-2] for motion_example in self.motion_file]
         object_name_set = sorted(list(set(self.object_name)))
-        print(self.motion_file, object_name_set)
         self.object_id = to_torch([object_name_set.index(name) for name in self.object_name], dtype=torch.long).cuda()
         self.obj2motion = torch.stack([self.object_id == k for k in range(len(object_name_set))], dim=0)
         self.object_name = object_name_set
         self.robot_type = cfg['env']['robotType']
         self.object_density = cfg['env']['objectDensity']
         self.ref_hoi_obs_size = 7 + 51 * 6 + 52 * 13 + 13 + 52 * 3 + 52 + 1
-
-        print(self.robot_type)
         self.num_motions = len(self.motion_file)
+        self.dataset_index = to_torch([int(data_path.split('/')[-1].split('_')[0][3:]) for data_path in self.motion_file], dtype=torch.long).cuda()
+
         super().__init__(cfg=cfg,
                          sim_params=sim_params,
                          physics_engine=physics_engine,
@@ -57,7 +56,7 @@ class InterMimic(Humanoid_SMPLX):
                          device_id=device_id,
                          headless=headless)
         
-        self._load_motion(self.motion_file)
+        self.hoi_data = self._load_motion(self.motion_file)
 
         self._curr_ref_obs = torch.zeros((self.num_envs, self.ref_hoi_obs_size), device=self.device, dtype=torch.float)
         self._hist_ref_obs = torch.zeros((self.num_envs, self.ref_hoi_obs_size), device=self.device, dtype=torch.float)
@@ -66,6 +65,7 @@ class InterMimic(Humanoid_SMPLX):
         self._tar_pos = torch.zeros([self.num_envs, 3], device=self.device, dtype=torch.float)
         self.kinematic_reset = torch.zeros([self.num_envs], device=self.device, dtype=torch.bool)
         self.contact_reset = torch.zeros((self.num_envs, 2), device=self.device, dtype=torch.float)
+        self.dataset_id = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         self._build_target_tensors()
 
         return
@@ -82,20 +82,20 @@ class InterMimic(Humanoid_SMPLX):
         super()._setup_character_props(key_bodies)
         return
 
-    def _load_motion(self, motion_file):
+    def _load_motion(self, motion_file, startk=0, topk=1, initk=0):
 
         hoi_datas = []
         hoi_refs = []
         if type(motion_file) != type([]):
             motion_file = [motion_file]
-        self.max_episode_length = []
+        max_episode_length = []
         for idx, data_path in enumerate(motion_file):
             loaded_dict = {}
-            hoi_data = torch.load(data_path)
+            hoi_data = torch.load(data_path)[startk:]
             loaded_dict['hoi_data'] = hoi_data.detach().to('cuda')
 
         
-            self.max_episode_length.append(loaded_dict['hoi_data'].shape[0])
+            max_episode_length.append(loaded_dict['hoi_data'].shape[0])
             self.fps_data = 30.
 
             loaded_dict['root_pos'] = loaded_dict['hoi_data'][:, 0:3].clone()
@@ -137,7 +137,7 @@ class InterMimic(Humanoid_SMPLX):
             object_points_extend = self.object_points[self.object_id[idx]].unsqueeze(0).repeat(loaded_dict['obj_rot'].shape[0], 1, 1).view(-1, 3)
             obj_points = torch_utils.quat_rotate(obj_rot_extend, object_points_extend).view(loaded_dict['obj_rot'].shape[0], self.object_points[self.object_id[idx]].shape[0], 3) + loaded_dict['obj_pos'].unsqueeze(1)
 
-            ref_ig = compute_sdf(loaded_dict['body_pos'].view(self.max_episode_length[-1],52,3), obj_points).view(-1, 3)
+            ref_ig = compute_sdf(loaded_dict['body_pos'].view(max_episode_length[-1],52,3), obj_points).view(-1, 3)
             heading_rot = torch_utils.calc_heading_quat_inv(loaded_dict['root_rot'])
             heading_rot_extend = heading_rot.unsqueeze(1).repeat(1, loaded_dict['body_pos'].shape[1] // 3, 1).view(-1, 4)
             ref_ig = quat_rotate(heading_rot_extend, ref_ig).view(loaded_dict['obj_rot'].shape[0], -1)    
@@ -168,6 +168,7 @@ class InterMimic(Humanoid_SMPLX):
                                                     loaded_dict['contact_obj'].clone(),
                                                     ),dim=-1)
             assert(self.ref_hoi_obs_size == loaded_dict['hoi_data'].shape[-1])
+            loaded_dict['hoi_data'] = torch.cat([loaded_dict['hoi_data'][0:1] for _ in range(initk)]+[loaded_dict['hoi_data']], dim=0)
             hoi_datas.append(loaded_dict['hoi_data'])
 
             hoi_ref = torch.cat((
@@ -183,25 +184,26 @@ class InterMimic(Humanoid_SMPLX):
                                 loaded_dict['obj_rot_vel'].clone(),
                                 ),dim=-1)
             hoi_refs.append(hoi_ref)
-        max_length = max(self.max_episode_length)
+        max_length = max(max_episode_length) + initk
         self.num_motions = len(hoi_refs)
-        self.max_episode_length = to_torch(self.max_episode_length, dtype=torch.long)
-        self.hoi_data = []
+        self.max_episode_length = to_torch(max_episode_length, dtype=torch.long) + initk
+        hoi_data = []
         self.hoi_refs = []
         for i, data in enumerate(hoi_datas):
             pad_size = (0, 0, 0, max_length - data.size(0))
             padded_data = F.pad(data, pad_size, "constant", 0)
-            self.hoi_data.append(padded_data)
+            hoi_data.append(padded_data)
             self.hoi_refs.append(F.pad(hoi_refs[i], pad_size, "constant", 0))
-        self.hoi_data = torch.stack(self.hoi_data, dim=0)
-        self.hoi_refs = torch.stack(self.hoi_refs, dim=0).unsqueeze(1).repeat(1, 1, 1, 1)
+        hoi_data = torch.stack(hoi_data, dim=0)
+        self.hoi_refs = torch.stack(self.hoi_refs, dim=0).unsqueeze(1).repeat(1, topk, 1, 1)
 
         self.ref_reward = torch.zeros((self.hoi_refs.shape[0], self.hoi_refs.shape[1], self.hoi_refs.shape[2])).to(self.hoi_refs.device)
         self.ref_reward[:, 0, :] = 1.0
 
         self.ref_index = torch.zeros((self.num_envs, )).long().to(self.hoi_refs.device)
-        self.create_component_stat(loaded_dict)
-        return
+        if not hasattr(self, 'data_component_order'):
+            self.create_component_stat(loaded_dict)
+        return hoi_data
 
     def create_component_stat(self, loaded_dict):
         self.data_component_order = [
@@ -411,6 +413,7 @@ class InterMimic(Humanoid_SMPLX):
         self.progress_buf[env_ids] = motion_times.clone()
         self.start_times[env_ids] = motion_times.clone()
         self.data_id[env_ids] = i
+        self.dataset_id[env_ids] = self.dataset_index[self.data_id[env_ids]]
         self._hist_obs[env_ids] = 0
         self.contact_reset[env_ids] = 0 
         self._set_env_state(env_ids=env_ids,
@@ -449,6 +452,7 @@ class InterMimic(Humanoid_SMPLX):
         self.progress_buf[env_ids] = motion_times.clone()
         self.start_times[env_ids] = motion_times.clone()
         self.data_id[env_ids] = i
+        self.dataset_id[env_ids] = self.dataset_index[self.data_id[env_ids]]
         self._hist_obs[env_ids] = 0
         self.contact_reset[env_ids] = 0 
         self._set_env_state(env_ids=env_ids,
@@ -631,13 +635,13 @@ class InterMimic(Humanoid_SMPLX):
         obs = torch.cat([local_tar_vel, local_tar_ang_vel, diff_local_obj_pos_flat, diff_local_obj_rot_obs, diff_local_vel, diff_local_ang_vel], dim=-1)
         return obs
     
-    def _compute_observations_iter(self, env_ids=None, delta_t=1):
+    def _compute_observations_iter(self, hoi_data, env_ids=None, delta_t=1):
         if (env_ids is None):
             env_ids = to_torch(np.arange(self.num_envs), device=self.device, dtype=torch.long)
 
         ts = self.progress_buf[env_ids].clone() 
         next_ts = torch.clamp(ts + delta_t, max=self.max_episode_length[self.data_id[env_ids]]-1)
-        ref_obs = self.hoi_data[self.data_id[env_ids], next_ts].clone()
+        ref_obs = hoi_data[self.data_id[env_ids], next_ts].clone()
         obs = self._compute_humanoid_obs(env_ids, ref_obs, next_ts)
         task_obs = self._compute_task_obs(env_ids, ref_obs)
         obs = torch.cat([obs, task_obs], dim=-1)    
@@ -658,12 +662,13 @@ class InterMimic(Humanoid_SMPLX):
         return ig_all, ig, ref_ig
         
     def _compute_observations(self, env_ids=None):
-        self._curr_ref_obs[env_ids] = self.hoi_data[self.data_id[env_ids], self.progress_buf[env_ids]].clone()
         if (env_ids is None):
-            self.obs_buf[:] = torch.cat((self._compute_observations_iter(None, 1), self._compute_observations_iter(None, 16)), dim=-1)
+            self._curr_ref_obs[:] = self.hoi_data[self.data_id[env_ids], self.progress_buf[env_ids]].clone()
+            self.obs_buf[:] = torch.cat((self._compute_observations_iter(self.hoi_data, None, 1), self._compute_observations_iter(self.hoi_data, None, 16)), dim=-1)
 
         else:
-            self.obs_buf[env_ids] = torch.cat((self._compute_observations_iter(env_ids, 1), self._compute_observations_iter(env_ids, 16)), dim=-1)
+            self._curr_ref_obs[env_ids] = self.hoi_data[self.data_id[env_ids], self.progress_buf[env_ids]].clone()
+            self.obs_buf[env_ids] = torch.cat((self._compute_observations_iter(self.hoi_data, env_ids, 1), self._compute_observations_iter(self.hoi_data, env_ids, 16)), dim=-1)
             
         return
     
@@ -935,7 +940,6 @@ class InterMimic(Humanoid_SMPLX):
         rcg_other = torch.exp(-ecg_other*w['cg_other'])
         
         no_contact = torch.abs(human_contact) < contact_thres
-        # print(no_contact, ref_all_contact)
         ecg_all = (torch.abs(no_contact + ref_human_contact) * (ref_human_contact < -contact_thres)).mean(dim=-1)
         rcg_all = torch.exp(-ecg_all*w['cg_all'])
 

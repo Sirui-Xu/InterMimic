@@ -18,6 +18,7 @@ class InterMimicG1(Humanoid_G1, InterMimic):
                          device_type=device_type,
                          device_id=device_id,
                          headless=headless)
+        self.hoi_data = self._load_motion(self.motion_file, startk=1, initk=15)
         self.scaling = cfg['env']['scaling']
         self.init_root_height = cfg['env']['initRootHeight']
         self.init_dof = torch.cat([to_torch([-0.1, 0, 0.0, 0.3, -0.2, 0, -0.1, 0, 0.0, 0.3, -0.2, 0, 0, 0, 0, 
@@ -37,130 +38,6 @@ class InterMimicG1(Humanoid_G1, InterMimic):
 
     def _setup_character_props(self, key_bodies):
         super()._setup_character_props(key_bodies)
-        return
-
-    def _load_motion(self, motion_file):
-
-        hoi_datas = []
-        hoi_refs = []
-        if type(motion_file) != type([]):
-            motion_file = [motion_file]
-        self.max_episode_length = []
-        for idx, data_path in enumerate(motion_file):
-            loaded_dict = {}
-            hoi_data = torch.load(data_path)[1:]
-            loaded_dict['hoi_data'] = hoi_data.detach().to('cuda')
-
-        
-            self.max_episode_length.append(loaded_dict['hoi_data'].shape[0])
-            self.fps_data = 30.
-
-            loaded_dict['root_pos'] = loaded_dict['hoi_data'][:, 0:3].clone()
-            loaded_dict['root_pos_vel'] = (loaded_dict['root_pos'][1:,:].clone() - loaded_dict['root_pos'][:-1,:].clone())*self.fps_data
-            loaded_dict['root_pos_vel'] = torch.cat((torch.zeros((1, loaded_dict['root_pos_vel'].shape[-1])).to('cuda'),loaded_dict['root_pos_vel']),dim=0)
-
-            loaded_dict['root_rot'] = loaded_dict['hoi_data'][:, 3:7].clone()
-            root_rot_exp_map = torch_utils.quat_to_exp_map(loaded_dict['root_rot'])
-            loaded_dict['root_rot_vel'] = (root_rot_exp_map[1:,:].clone() - root_rot_exp_map[:-1,:].clone())*self.fps_data
-            loaded_dict['root_rot_vel'] = torch.cat((torch.zeros((1, loaded_dict['root_rot_vel'].shape[-1])).to('cuda'),loaded_dict['root_rot_vel']),dim=0)
-
-            loaded_dict['dof_pos'] = loaded_dict['hoi_data'][:, 9:9+153].clone()
-
-            loaded_dict['dof_vel'] = []
-
-            loaded_dict['dof_vel'] = (loaded_dict['dof_pos'][1:,:].clone() - loaded_dict['dof_pos'][:-1,:].clone())*self.fps_data
-            loaded_dict['dof_vel'] = torch.cat((torch.zeros((1, loaded_dict['dof_vel'].shape[-1])).to('cuda'),loaded_dict['dof_vel']),dim=0)
-
-            loaded_dict['body_pos'] = loaded_dict['hoi_data'][:, 162: 162+52*3].clone()
-            loaded_dict['body_pos_vel'] = (loaded_dict['body_pos'][1:,:].clone() - loaded_dict['body_pos'][:-1,:].clone())*self.fps_data
-            loaded_dict['body_pos_vel'] = torch.cat((torch.zeros((1, loaded_dict['body_pos_vel'].shape[-1])).to('cuda'),loaded_dict['body_pos_vel']),dim=0)
-
-            loaded_dict['obj_pos'] = loaded_dict['hoi_data'][:, 318:321].clone()
-
-            loaded_dict['obj_pos_vel'] = (loaded_dict['obj_pos'][1:,:].clone() - loaded_dict['obj_pos'][:-1,:].clone())*self.fps_data
-            if self.init_vel:
-                loaded_dict['obj_pos_vel'] = torch.cat((loaded_dict['obj_pos_vel'][:1],loaded_dict['obj_pos_vel']),dim=0)
-            else:
-                loaded_dict['obj_pos_vel'] = torch.cat((torch.zeros((1, loaded_dict['obj_pos_vel'].shape[-1])).to('cuda'),loaded_dict['obj_pos_vel']),dim=0)
-
-
-            loaded_dict['obj_rot'] = loaded_dict['hoi_data'][:, 321:325].clone()
-            obj_rot_exp_map = torch_utils.quat_to_exp_map(loaded_dict['obj_rot'])
-            loaded_dict['obj_rot_vel'] = (obj_rot_exp_map[1:,:].clone() - obj_rot_exp_map[:-1,:].clone())*self.fps_data
-            loaded_dict['obj_rot_vel'] = torch.cat((torch.zeros((1, loaded_dict['obj_rot_vel'].shape[-1])).to('cuda'),loaded_dict['obj_rot_vel']),dim=0)
-
-
-            obj_rot_extend = loaded_dict['obj_rot'].unsqueeze(1).repeat(1, self.object_points[self.object_id[idx]].shape[0], 1).view(-1, 4)
-            object_points_extend = self.object_points[self.object_id[idx]].unsqueeze(0).repeat(loaded_dict['obj_rot'].shape[0], 1, 1).view(-1, 3)
-            obj_points = torch_utils.quat_rotate(obj_rot_extend, object_points_extend).view(loaded_dict['obj_rot'].shape[0], self.object_points[self.object_id[idx]].shape[0], 3) + loaded_dict['obj_pos'].unsqueeze(1)
-
-            ref_ig = compute_sdf(loaded_dict['body_pos'].view(self.max_episode_length[-1],52,3), obj_points).view(-1, 3)
-            heading_rot = torch_utils.calc_heading_quat_inv(loaded_dict['root_rot'])
-            heading_rot_extend = heading_rot.unsqueeze(1).repeat(1, loaded_dict['body_pos'].shape[1] // 3, 1).view(-1, 4)
-            ref_ig = quat_rotate(heading_rot_extend, ref_ig).view(loaded_dict['obj_rot'].shape[0], -1)    
-            loaded_dict['ig'] = ref_ig
-            loaded_dict['contact_obj'] = torch.round(loaded_dict['hoi_data'][:, 330:331].clone())
-            loaded_dict['contact_human'] = torch.round(loaded_dict['hoi_data'][:, 331:331+52].clone())
-            loaded_dict['body_rot'] = loaded_dict['hoi_data'][:, 331+52:331+52+52*4].clone()
-
-            human_rot_exp_map = torch_utils.quat_to_exp_map(loaded_dict['body_rot'].view(-1, 4)).view(-1, 52*3)
-            loaded_dict['body_rot_vel'] = (human_rot_exp_map[1:,:].clone() - human_rot_exp_map[:-1,:].clone())*self.fps_data
-            loaded_dict['body_rot_vel'] = torch.cat((torch.zeros((1, loaded_dict['body_rot_vel'].shape[-1])).to('cuda'),loaded_dict['body_rot_vel']),dim=0)
-
-            loaded_dict['hoi_data'] = torch.cat((
-                                                    loaded_dict['root_pos'].clone(), 
-                                                    loaded_dict['root_rot'].clone(), 
-                                                    loaded_dict['dof_pos'].clone(), 
-                                                    loaded_dict['dof_vel'].clone(),
-                                                    loaded_dict['body_pos'].clone(),
-                                                    loaded_dict['body_rot'].clone(),
-                                                    loaded_dict['body_pos_vel'].clone(),
-                                                    loaded_dict['body_rot_vel'].clone(),
-                                                    loaded_dict['obj_pos'].clone(),
-                                                    loaded_dict['obj_rot'].clone(),
-                                                    loaded_dict['obj_pos_vel'].clone(), 
-                                                    loaded_dict['obj_rot_vel'].clone(),
-                                                    loaded_dict['ig'].clone(),
-                                                    loaded_dict['contact_human'].clone(),
-                                                    loaded_dict['contact_obj'].clone(),
-                                                    ),dim=-1)
-            assert(self.ref_hoi_obs_size == loaded_dict['hoi_data'].shape[-1])
-            loaded_dict['hoi_data'] = torch.cat([loaded_dict['hoi_data'][0:1] for _ in range(15)]+[loaded_dict['hoi_data']], dim=0)
-            hoi_datas.append(loaded_dict['hoi_data'])
-
-            hoi_ref = torch.cat((
-                                loaded_dict['root_pos'].clone(), 
-                                loaded_dict['root_rot'].clone(), 
-                                loaded_dict['root_pos_vel'].clone(),
-                                loaded_dict['root_rot_vel'].clone(), 
-                                loaded_dict['dof_pos'].clone(), 
-                                loaded_dict['dof_vel'].clone(), 
-                                loaded_dict['obj_pos'].clone(),
-                                loaded_dict['obj_rot'].clone(),
-                                loaded_dict['obj_pos_vel'].clone(),
-                                loaded_dict['obj_rot_vel'].clone(),
-                                ),dim=-1)
-            hoi_ref = torch.cat([hoi_ref[0:1] for _ in range(15)]+[hoi_ref], dim=0)
-
-            hoi_refs.append(hoi_ref)
-        max_length = max(self.max_episode_length) + 15
-        self.num_motions = len(hoi_refs)
-        self.max_episode_length = to_torch(self.max_episode_length, dtype=torch.long) + 15
-        self.hoi_data = []
-        self.hoi_refs = []
-        for i, data in enumerate(hoi_datas):
-            pad_size = (0, 0, 0, max_length - data.size(0))
-            padded_data = F.pad(data, pad_size, "constant", 0)
-            self.hoi_data.append(padded_data)
-            self.hoi_refs.append(F.pad(hoi_refs[i], pad_size, "constant", 0))
-        self.hoi_data = torch.stack(self.hoi_data, dim=0)
-        self.hoi_refs = torch.stack(self.hoi_refs, dim=0).unsqueeze(1).repeat(1, 1, 1, 1)
-
-        self.ref_reward = torch.zeros((self.hoi_refs.shape[0], self.hoi_refs.shape[1], self.hoi_refs.shape[2])).to(self.hoi_refs.device)
-        self.ref_reward[:, 0, :] = 1.0
-
-        self.ref_index = torch.zeros((self.num_envs, )).long().to(self.hoi_refs.device)
-        self.create_component_stat(loaded_dict)
         return
 
 
@@ -322,10 +199,13 @@ class InterMimicG1(Humanoid_G1, InterMimic):
     
     def _compute_observations(self, env_ids=None):
         if (env_ids is None):
-            self.obs_buf[:] = torch.cat((self._compute_observations_iter(None, 1), self._compute_observations_iter(None, 16), (self.progress_buf >= 5).float().unsqueeze(1)), dim=-1)
+            self._curr_ref_obs[:] = self.hoi_data[self.data_id[env_ids], self.progress_buf[env_ids]].clone()
+            self.obs_buf[:] = torch.cat((self._compute_observations_iter(self.hoi_data, None, 1), self._compute_observations_iter(self.hoi_data, None, 16), (self.progress_buf >= 5).float().unsqueeze(1)), dim=-1)
 
         else:
-            self.obs_buf[env_ids] = torch.cat((self._compute_observations_iter(env_ids, 1), self._compute_observations_iter(env_ids, 16), (self.progress_buf[env_ids] >= 5).float().unsqueeze(1)), dim=-1)
+            self._curr_ref_obs[env_ids] = self.hoi_data[self.data_id[env_ids], self.progress_buf[env_ids]].clone()
+            self.obs_buf[env_ids] = torch.cat((self._compute_observations_iter(self.hoi_data, env_ids, 1), self._compute_observations_iter(self.hoi_data, env_ids, 16), (self.progress_buf[env_ids] >= 5).float().unsqueeze(1)), dim=-1)
+            
         return
     
     def _compute_hoi_observations(self, env_ids=None):
