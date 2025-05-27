@@ -240,15 +240,17 @@ class InterMimicAgentDistill(intermimic_agent.InterMimicAgent):
                 b_loss = torch.sum(rand_action_mask * b_loss) / rand_action_sum
                 a_clip_frac = torch.sum(rand_action_mask * a_clipped) / rand_action_sum
                 e_loss = torch.mean(e_loss)
-                if self.epoch_num > 5000:
-                    loss = a_loss + self.critic_coef * c_loss + self.bounds_loss_coef * b_loss + self.expert_loss_coef * e_loss * max(1 - (self.epoch_num / 5000), 0.001)
+                if self.epoch_num > 6000:
+                    loss = a_loss * min(((self.epoch_num - 6000) / 4000), 1) + self.critic_coef * c_loss + self.bounds_loss_coef * b_loss + self.expert_loss_coef * e_loss * max(1 - ((self.epoch_num - 6000) / 4000), 0.1)
+                elif self.epoch_num > 5000:
+                    loss = min(((self.epoch_num - 5000) / 1000), 1) * self.critic_coef * c_loss + self.expert_loss_coef * e_loss
                 else:
-                    loss = self.critic_coef * c_loss + self.bounds_loss_coef * b_loss + self.expert_loss_coef * e_loss * max(1 - (self.epoch_num / 5000), 0.001) 
+                    loss = self.expert_loss_coef * e_loss
             else:
                 e_info = self._supervise_loss(mu, expert_mus)
                 e_loss = e_info['expert_loss']
                 e_loss = torch.mean(e_loss)
-                loss = e_loss * max(1 - (self.epoch_num / 5000), 0.001)
+                loss = self.expert_loss_coef * e_loss
             
             a_info['actor_loss'] = a_loss
             a_info['actor_clip_frac'] = a_clip_frac
