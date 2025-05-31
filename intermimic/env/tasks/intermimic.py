@@ -893,30 +893,18 @@ class InterMimic(Humanoid_SMPLX):
         contact_thres = 0.1
         ref_human_contact = self.extract_data_component('contact_human', obs=self._curr_ref_obs)
         human_contact = self.extract_data_component('contact_human', obs=self._curr_obs)
-        left_contact_hand_ids = [i for i in range(len(self.contact_bodies))
-                                 if "L_Wrist" in self.contact_bodies[i] or
-                                 "L_Index" in self.contact_bodies[i] or 
-                                 "L_Middle" in self.contact_bodies[i] or
-                                 "L_Pinky" in self.contact_bodies[i] or
-                                 "L_Ring" in self.contact_bodies[i] or
-                                 "L_Thumb" in self.contact_bodies[i]]
+        left_contact_hand_ids = list(range(17, 33))
         
         ref_left_contact_hand = ref_human_contact[:, left_contact_hand_ids]
         ref_left_contact_hand_any = torch.any(ref_left_contact_hand > contact_thres, dim=-1).float()
         left_hand_contact = human_contact[:, left_contact_hand_ids].clone()
         left_hand_contact_any = torch.any(left_hand_contact > contact_thres, dim=-1, keepdim=True).float()
 
-        ecg_left = (((ref_left_contact_hand > contact_thres) * torch.abs(left_hand_contact - ref_left_contact_hand)).sum(dim=-1))
+        ecg_left = (((ref_left_contact_hand_any.unsqueeze(-1) > contact_thres) * torch.abs(left_hand_contact - ref_left_contact_hand_any.unsqueeze(-1))).sum(dim=-1))
         rcg_left = 0.5 * (1 + torch.exp(-ecg_left*w['cg_hand'])) * (ref_left_contact_hand_any) + (1 - ref_left_contact_hand_any)
 
 
-        right_contact_hand_ids = [i for i in range(len(self.contact_bodies))
-                                 if "R_Wrist" in self.contact_bodies[i] or
-                                 "R_Index" in self.contact_bodies[i] or 
-                                 "R_Middle" in self.contact_bodies[i] or
-                                 "R_Pinky" in self.contact_bodies[i] or
-                                 "R_Ring" in self.contact_bodies[i] or
-                                 "R_Thumb" in self.contact_bodies[i]]
+        right_contact_hand_ids = list(range(36, 52))
         
         ref_right_contact_hand = ref_human_contact[:, right_contact_hand_ids]
         ref_right_contact_hand_any = torch.any(ref_right_contact_hand > contact_thres, dim=-1).float()
@@ -928,7 +916,7 @@ class InterMimic(Humanoid_SMPLX):
                                 torch.abs(ref_right_contact_hand_any.unsqueeze(-1) - right_hand_contact_any) * ref_right_contact_hand_any.unsqueeze(-1),
                                 ], dim=-1)
         
-        ecg_right = (((ref_right_contact_hand > contact_thres) * torch.abs(right_hand_contact - ref_right_contact_hand)).sum(dim=-1))
+        ecg_right = (((ref_right_contact_hand_any.unsqueeze(-1) > contact_thres) * torch.abs(right_hand_contact - ref_right_contact_hand_any.unsqueeze(-1))).sum(dim=-1))
         rcg_right = 0.5 * (1 + torch.exp(-ecg_right*w['cg_hand'])) * (ref_right_contact_hand_any) + (1 - ref_right_contact_hand_any)
         
         rcg_hand = rcg_left * rcg_right

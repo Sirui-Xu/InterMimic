@@ -41,7 +41,10 @@ class InterMimicAgentDistill(intermimic_agent.InterMimicAgent):
     def __init__(self, base_name, config):
         super().__init__(base_name, config)
         self.expert_loss_coef = config['expert_loss_coef']
-
+        self.entropy_coef = config['entropy_coef']
+        self.ev_ma            = 0.0   # running avg explained‑variance
+        self.critic_win_streak = 0    # consecutive windows EV ≥ threshold
+        self.actor_update_num = 0
         return
 
 
@@ -226,10 +229,19 @@ class InterMimicAgentDistill(intermimic_agent.InterMimicAgent):
                 a_info = self._actor_loss(old_action_log_probs_batch, action_log_probs, advantage, curr_e_clip)
                 a_loss = a_info['actor_loss']
                 a_clipped = a_info['actor_clipped'].float()
-
                 c_info = self._critic_loss(value_preds_batch, values, curr_e_clip, return_batch, self.clip_value)
                 c_loss = c_info['critic_loss']
 
+                if self.epoch_num > 7000:
+                    returns_var = return_batch.var(unbiased=False) + 1e-8  # avoid divide‑by‑0
+                    errors_var = (return_batch - values).var(unbiased=False)
+                    ev = 1.0 - errors_var / returns_var
+                    self.ev_ma = 0.99 * self.ev_ma + 0.01 * ev.item()
+                    if self.ev_ma >= 0.6:
+                        self.critic_win_streak += 1
+                    else:
+                        self.critic_win_streak = 0
+                        
                 b_loss = self.bound_loss(mu)
                 
                 c_loss = torch.mean(c_loss)
@@ -240,12 +252,16 @@ class InterMimicAgentDistill(intermimic_agent.InterMimicAgent):
                 b_loss = torch.sum(rand_action_mask * b_loss) / rand_action_sum
                 a_clip_frac = torch.sum(rand_action_mask * a_clipped) / rand_action_sum
                 e_loss = torch.mean(e_loss)
-                if self.epoch_num > 6000:
-                    loss = a_loss * min(((self.epoch_num - 6000) / 4000), 1) + self.critic_coef * c_loss + self.bounds_loss_coef * b_loss + self.expert_loss_coef * e_loss * max(1 - ((self.epoch_num - 6000) / 4000), 0.1)
+                if self.epoch_num > 7000 and self.critic_win_streak >= 3:
+                    loss = a_loss * min((self.actor_update_num / 5000), 1) + self.critic_coef * c_loss + self.bounds_loss_coef * b_loss + self.expert_loss_coef * e_loss * max(1 - (self.actor_update_num / 5000), 0.02)
+                    self.actor_update_num += 1
+                elif self.epoch_num > 6600:
+                    loss = min(((self.epoch_num - 5000) / 2000), 1) * self.critic_coef * c_loss
                 elif self.epoch_num > 5000:
-                    loss = min(((self.epoch_num - 5000) / 1000), 1) * self.critic_coef * c_loss + self.expert_loss_coef * e_loss
+                    loss = min(((self.epoch_num - 5000) / 2000), 1) * self.critic_coef * c_loss + self.expert_loss_coef * e_loss
                 else:
                     loss = self.expert_loss_coef * e_loss
+                
             else:
                 e_info = self._supervise_loss(mu, expert_mus)
                 e_loss = e_info['expert_loss']
