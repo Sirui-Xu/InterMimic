@@ -29,13 +29,13 @@
     <img src='https://img.shields.io/badge/GitHub-Code-black?style=flat&logo=github&logoColor=white'></a>
 </p>
 
-## 🏠 About
-<div style="text-align: center;">
-    <img src="assets/teaser.png" width=100% >
+## 🏠 Overview
+<div align="center">
+  <img src="assets/teaser.png" width="100%" alt="InterMimic teaser"/>
 </div>
-<br>
-We introduce InterMimic, a framework that enables a <b>single</b> policy to robustly learn from hours of imperfect MoCap data covering <b>diverse</b> full-body interactions with <b>dynamic and varied</b> objects, supporting both <b>SMPLX</b> and <b>Unitree G1</b> humanoids.
-</br>
+
+> **InterMimic** features **one** unified policy, spanning **diverse full-body interactions** with **dynamic, heterogeneous objects**—and it works out-of-the-box for both **SMPL-X** and **Unitree G1** humanoids.
+
 
 ## 📹 Demo
 <p align="center">
@@ -43,6 +43,7 @@ We introduce InterMimic, a framework that enables a <b>single</b> policy to robu
 </p>
 
 ## 🔥 News
+- **[2025-06-03]** Initial release of PSI and the processed data. Next release: teacher policy inference for [dynamics-aware retargeting](InterAct/OMOMO_retarget), and student policy inference.
 - **[2025-05-26]** It's been a while! The student policy training pipeline has been released! The PSI and other data construction pipelines will follow soon.
 - **[2025-04-18]** Release a checkpoint with high‑fidelity physics and enhanced contact precision.
 - **[2025-04-11]** The training code for teacher policies is live—try training your own policy!
@@ -71,7 +72,10 @@ Follow the following instructions:
 
 2. Download and setup [Isaac Gym](https://developer.nvidia.com/isaac-gym). 
 
-3. Activate the environment:
+3. Download the [dataset](https://drive.google.com/file/d/141YoPOd2DlJ4jhU2cpZO5VU5GzV_lm5j/view?usp=sharing), unzip it, and move the extracted folder to `InterAct/OMOMO_new/`. *This build contains minor fixes to the original release, so your results may deviate slightly from those reported in the paper.*
+
+
+4. Activate the environment:
 
     ```bash
     conda activate intermimic
@@ -102,6 +106,18 @@ A higher‑fidelity simulation enough for low-dynamic interaction (trading off s
   ```bash
   sh scripts/train_teacher_new.sh
   ```
+
+**How to enable PSI**
+
+Open the training config, for example, [`omomo_train_new.yaml`](./intermimic/data/cfg/omomo_train_new.yaml). Set
+
+   ```yaml
+   physicalBufferSize: <integer greater than 1>
+   ```
+
+**When to skip PSI**
+
+OMOMO subjects `sub1`, `sub11`, `sub12`, and `sub13` include wrong flipped-hand frames that can push the motion out of bounds and stall the simulator. For those four subjects, leave `physicalBufferSize` at its default value (`1`) and train without PSI.
 
 ### Student Policy Training
 

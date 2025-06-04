@@ -36,6 +36,7 @@ class InterMimic(Humanoid_SMPLX):
         self.ball_size = cfg['env']['ballSize']
         self.more_rigid = cfg['env']['moreRigid']
         self.rollout_length = cfg['env']['rolloutLength']
+        self.psi = cfg['env'].get('physicalBufferSize', 1)
         motion_file = os.listdir(self.motion_file)
         self.motion_file = sorted([os.path.join(self.motion_file, data_path) for data_path in motion_file if data_path.split('_')[0] in cfg['env']['dataSub']])
         self.object_name = [motion_example.split('_')[-2] for motion_example in self.motion_file]
@@ -56,7 +57,7 @@ class InterMimic(Humanoid_SMPLX):
                          device_id=device_id,
                          headless=headless)
         
-        self.hoi_data = self._load_motion(self.motion_file)
+        self.hoi_data = self._load_motion(self.motion_file, topk=self.psi)
 
         self._curr_ref_obs = torch.zeros((self.num_envs, self.ref_hoi_obs_size), device=self.device, dtype=torch.float)
         self._hist_ref_obs = torch.zeros((self.num_envs, self.ref_hoi_obs_size), device=self.device, dtype=torch.float)
@@ -66,6 +67,9 @@ class InterMimic(Humanoid_SMPLX):
         self.kinematic_reset = torch.zeros([self.num_envs], device=self.device, dtype=torch.bool)
         self.contact_reset = torch.zeros((self.num_envs, 2), device=self.device, dtype=torch.float)
         self.dataset_id = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
+        self._curr_reward = torch.zeros([self.num_envs, cfg['env']['rolloutLength']], device=self.device, dtype=torch.float)
+        self._sum_reward = torch.zeros([self.num_envs], device=self.device, dtype=torch.float)
+        self._curr_state = torch.zeros([self.num_envs, cfg['env']['rolloutLength'], 332], device=self.device, dtype=torch.float)
         self._build_target_tensors()
 
         return
@@ -716,6 +720,54 @@ class InterMimic(Humanoid_SMPLX):
                                                                            self._enable_early_termination, self._termination_heights, self.start_times, 
                                                                            self.rollout_length, self.kinematic_reset, torch.any(self.contact_reset > 10, dim=-1)
                                                                           )
+        if self.reset_buf.sum() > 0 and self.psi > 1:
+            reset_ind = (self.reset_buf == 1)
+            data_id = self.data_id[reset_ind]
+            max_episode_length = self.max_episode_length[data_id]
+            if (max_episode_length < self.rollout_length).all():
+                self._sum_reward[reset_ind] = 0
+                return
+            start_index, end_index = self.start_times[reset_ind], self.progress_buf[reset_ind]
+            sum_reward = self._sum_reward[reset_ind].mean()
+            if torch.rand(1)[0] < 0:
+                self._sum_reward[reset_ind] = 0
+                return
+            self._sum_reward[reset_ind] = 0
+            reset_ind = torch.logical_and(reset_ind, self.max_episode_length[self.data_id] > self.rollout_length)
+            if reset_ind.sum() < 0.995:
+                return
+            curr_reward = self._curr_reward[reset_ind]
+            state = self._curr_state[reset_ind]
+            # Initialize the reward tensor with zeros
+            reward = torch.zeros((curr_reward.shape[0], self.hoi_refs.shape[0], self.hoi_refs.shape[2]), device=curr_reward.device)
+            end_i = torch.minimum(max_episode_length, self.rollout_length + start_index)
+
+            assert (end_index < end_i).all()
+            # Loop through each example in the batch to assign the values from curr_reward to the correct slices in reward
+
+            # data_num, sample_choice, time, feature
+
+            for i in range(curr_reward.shape[0]):
+                if end_index[i] > start_index[i]+30:  # Ensure the indices are valid
+                    index_tensor = torch.arange(start_index[i]+10, end_index[i]-10, device=start_index.device)
+                    reward[i, data_id[i], start_index[i]+10:end_index[i]-10] = ((end_index[i] - index_tensor) / (end_i[i] - index_tensor))
+
+            adjust_reward, adjust_reward_index = reward.max(dim=0)
+            for i in range(reward.shape[1]):
+                if self.max_episode_length[i] < self.rollout_length:
+                    continue
+                for j in range(reward.shape[2]):
+                    if self.max_episode_length[i] - j < self.rollout_length:
+                        break
+                    value, index = self.ref_reward[i, 1:, j].min(dim=0)
+                    index = index + 1
+                    id1 = adjust_reward_index[i, j]
+                    idx = j - start_index[adjust_reward_index[i, j]]
+
+                    if idx > 0 and idx < self.rollout_length and adjust_reward[i, j] > 0.5:
+                        self.ref_reward[i, index, j] = adjust_reward[i, j]
+                        self.hoi_refs[i, index, j] = state[id1, idx]
+            self.ref_reward[:, 1:, :] = self.ref_reward[:, 1:, :] * (1 - 1e-5)
         return
 
     def compute_hoi_reset(self, reset_buf, progress_buf, obs_buf, rigid_body_pos,
@@ -743,7 +795,16 @@ class InterMimic(Humanoid_SMPLX):
         kinematic_reset = torch.logical_or(human_reset, object_reset)
         self.contact_reset = (self.contact_reset + contact_reset) * contact_reset
         self.kinematic_reset = torch.logical_or(ig_reset, kinematic_reset)
-
+        index = torch.arange(self._curr_reward.shape[0])
+        # # print(self._humanoid_root_states.dtype)
+        self._curr_reward[index, self.progress_buf - self.start_times] = self.rew_buf
+        self._sum_reward[index] += self.rew_buf
+        self._curr_state[index, self.progress_buf - self.start_times, :] = torch.cat([
+            self._humanoid_root_states,
+            self._dof_pos,
+            self._dof_vel,
+            self._target_states,
+        ], dim=1)
         return
     
     def compute_humanoid_reward(self, w):
@@ -900,7 +961,7 @@ class InterMimic(Humanoid_SMPLX):
         left_hand_contact = human_contact[:, left_contact_hand_ids].clone()
         left_hand_contact_any = torch.any(left_hand_contact > contact_thres, dim=-1, keepdim=True).float()
 
-        ecg_left = (((ref_left_contact_hand_any.unsqueeze(-1) > contact_thres) * torch.abs(left_hand_contact - ref_left_contact_hand_any.unsqueeze(-1))).sum(dim=-1))
+        ecg_left = (((ref_left_contact_hand_any.unsqueeze(-1) > contact_thres) * torch.abs(left_hand_contact - ref_left_contact_hand_any.unsqueeze(-1))).mean(dim=-1))
         rcg_left = 0.5 * (1 + torch.exp(-ecg_left*w['cg_hand'])) * (ref_left_contact_hand_any) + (1 - ref_left_contact_hand_any)
 
 
@@ -916,7 +977,7 @@ class InterMimic(Humanoid_SMPLX):
                                 torch.abs(ref_right_contact_hand_any.unsqueeze(-1) - right_hand_contact_any) * ref_right_contact_hand_any.unsqueeze(-1),
                                 ], dim=-1)
         
-        ecg_right = (((ref_right_contact_hand_any.unsqueeze(-1) > contact_thres) * torch.abs(right_hand_contact - ref_right_contact_hand_any.unsqueeze(-1))).sum(dim=-1))
+        ecg_right = (((ref_right_contact_hand_any.unsqueeze(-1) > contact_thres) * torch.abs(right_hand_contact - ref_right_contact_hand_any.unsqueeze(-1))).mean(dim=-1))
         rcg_right = 0.5 * (1 + torch.exp(-ecg_right*w['cg_hand'])) * (ref_right_contact_hand_any) + (1 - ref_right_contact_hand_any)
         
         rcg_hand = rcg_left * rcg_right
