@@ -42,7 +42,7 @@ import copy
 import torch
 
 from learning import intermimic_agent_distill
-from learning import intermimic_players
+from learning import intermimic_players_distill
 from learning import intermimic_models
 from learning import intermimic_network_builder
 
@@ -173,7 +173,7 @@ def build_alg_runner(algo_observer):
     runner = Runner(algo_observer)
 
     runner.algo_factory.register_builder('intermimic', lambda **kwargs : intermimic_agent_distill.InterMimicAgentDistill(**kwargs))
-    runner.player_factory.register_builder('intermimic', lambda **kwargs : intermimic_players.InterMimicPlayerContinuous(**kwargs))
+    runner.player_factory.register_builder('intermimic', lambda **kwargs : intermimic_players_distill.InterMimicPlayerContinuousDistill(**kwargs))
     runner.model_builder.model_factory.register_builder('intermimic', lambda network, **kwargs : intermimic_models.ModelInterMimicContinuous(network))  
     runner.model_builder.network_factory.register_builder('intermimic', lambda **kwargs : intermimic_network_builder.InterMimicBuilder())
 

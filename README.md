@@ -43,6 +43,7 @@
 </p>
 
 ## 🔥 News
+- **[2025-06-10]** Release the instruction for the student policy inference.
 - **[2025-06-03]** Initial release of PSI and the processed data. Next release: teacher policy inference for [dynamics-aware retargeting](InterAct/OMOMO_retarget), and student policy inference.
 - **[2025-05-26]** It's been a while! The student policy training pipeline has been released! The PSI and other data construction pipelines will follow soon.
 - **[2025-04-18]** Release a checkpoint with high‑fidelity physics and enhanced contact precision.
@@ -152,13 +153,23 @@ We’ve released a checkpoint for one (out of 17) teacher policy on OMOMO, along
     sh scripts/test_g1.sh
     ```
 
+### Student Policy Inference
+
+
+After finish the student policy training, run the inference with
+
+  ```bash
+  sh scripts/test_student.sh
+  ```
+
 ## 📝 TODO List  
 - [x] Release inference demo for the teacher policy  
 - [x] Add support for Unitree-G1 with dexterous robot hands
 - [x] Release training pipeline for the teacher policy 
 - [x] Release student policy distillation training
-- [ ] All processed MoCap and distilled reference data (physically correct HOI data❗️), and all related checkpoints  
-- [ ] Release evaluation pipeline for the student policy  
+- [x] Release processed MoCap
+- [x] Release inference pipeline for the student policy 
+- [ ] Distilled reference data (physically correct HOI data❗️), and all related checkpoints   
 - [ ] Release all data and processing scripts alongside the [InterAct](https://github.com/wzyabcas/InterAct) launch  
 - [ ] Release physics-based text-to-HOI and interaction prediction demo  
 
