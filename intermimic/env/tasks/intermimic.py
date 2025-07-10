@@ -328,10 +328,12 @@ class InterMimic(Humanoid_SMPLX):
 
         props = self.gym.get_actor_rigid_shape_properties(env_ptr, target_handle)
         for p_idx in range(len(props)):
-            props[p_idx].restitution = 0.6
-            props[p_idx].friction = 0.8
+            props[p_idx].restitution = 0.05
+            props[p_idx].friction = 0.6
             props[p_idx].rolling_friction = 0.01
-            props[p_idx].torsion_friction = 0.8
+            props[p_idx].torsion_friction = 0.01
+            if self.object_name[env_id % len(self.object_name)] == 'plasticbox' or self.object_name[env_id % len(self.object_name)] == 'trashcan':
+                props[p_idx].rest_offset = 0.015
         self.gym.set_actor_rigid_shape_properties(env_ptr, target_handle, props)
 
         self._target_handles.append(target_handle)
@@ -818,7 +820,7 @@ class InterMimic(Humanoid_SMPLX):
         ref_ig_norm = ref_ig.norm(dim=-1)
         weight_h = (-5 * ref_ig_norm).exp()
         weight_hp = weight_h.clone().detach()  
-        ancle_toe_ids = [i+1 for i in range(len_keypos) if 'Ankle' in self.key_bodies[i] or 'Toe' in self.key_bodies[i]]
+        ancle_toe_ids = [i for i in range(len_keypos) if 'Ankle' in self.key_bodies[i] or 'Toe' in self.key_bodies[i]]
         weight_hp[:, ancle_toe_ids] = 1
 
         ep = torch.mean(((ref_key_pos - key_pos)**2).sum(dim=-1) * weight_hp[:, self._key_body_ids],dim=-1)

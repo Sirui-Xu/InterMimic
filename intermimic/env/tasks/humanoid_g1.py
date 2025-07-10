@@ -118,30 +118,34 @@ class Humanoid_G1(Humanoid_SMPLX):
             dof_prop["damping"] = [50 for _ in range(12)] + [30 for _ in range(7)] + [20 for _ in range(self._num_actions_wrist)] + [10 for _ in range(self._num_actions_hand)] + [30 for _ in range(4)] + [20 for _ in range(self._num_actions_wrist)] + [10 for _ in range(self._num_actions_hand)]
             self.gym.set_actor_dof_properties(env_ptr, humanoid_handle, dof_prop)
                     
-        props = self.gym.get_actor_rigid_shape_properties(env_ptr, humanoid_handle)
-        names = self.gym.get_actor_rigid_body_names(env_ptr, humanoid_handle)
+        # fetch all the data
+        shape_props        = self.gym.get_actor_rigid_shape_properties(env_ptr, humanoid_handle)
+        body_names         = self.gym.get_actor_rigid_body_names(env_ptr, humanoid_handle)
+        body_shape_indices = self.gym.get_actor_rigid_body_shape_indices(env_ptr, humanoid_handle)
 
-        for p_idx in range(len(props)):
-            if 'left_hand' in names[p_idx]:
-                props[p_idx].filter = 1
-            if 'right_hand' in names[p_idx]:
-                props[p_idx].filter = 128
-            if 'right' in names[p_idx]:
-                if 'ankle' in names[p_idx]:
-                    props[p_idx].filter = 2
-                elif 'knee' in names[p_idx]:
-                    props[p_idx].filter = 6
-                elif 'hip' in names[p_idx]:
-                    props[p_idx].filter = 12
-            if 'left' in names[p_idx]:
-                if 'ankle' in names[p_idx]:
-                    props[p_idx].filter = 16
-                elif 'knee' in names[p_idx]:
-                    props[p_idx].filter = 48
-                elif 'hip' in names[p_idx]:
-                    props[p_idx].filter = 96
+        # for each body, modify the filter on every shape in its range
+        for body_idx, idx_range in enumerate(body_shape_indices):
+            name = body_names[body_idx]
+            start, count = idx_range.start, idx_range.count
+            for si in range(start, start + count):
+                sp = shape_props[si]
+                if 'right' in name:
+                    if 'ankle' in name:
+                        sp.filter = 2
+                    elif 'knee' in name:
+                        sp.filter = 6
+                    elif 'hip' in name:
+                        sp.filter = 12
+                if 'left' in name:
+                    if 'ankle' in name:
+                        sp.filter = 16
+                    elif 'knee' in name:
+                        sp.filter = 48
+                    elif 'hip' in name:
+                        sp.filter = 96
 
-        self.gym.set_actor_rigid_shape_properties(env_ptr, humanoid_handle, props)
+        # write them back
+        self.gym.set_actor_rigid_shape_properties(env_ptr, humanoid_handle, shape_props)
         self.humanoid_handles.append(humanoid_handle)
 
         return
