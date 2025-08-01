@@ -334,6 +334,8 @@ class InterMimic(Humanoid_SMPLX):
             props[p_idx].torsion_friction = 0.01
             if self.object_name[env_id % len(self.object_name)] == 'plasticbox' or self.object_name[env_id % len(self.object_name)] == 'trashcan':
                 props[p_idx].rest_offset = 0.015
+            else:
+                props[p_idx].rest_offset = 0.002
         self.gym.set_actor_rigid_shape_properties(env_ptr, target_handle, props)
 
         self._target_handles.append(target_handle)
