@@ -116,10 +116,6 @@ Open the training config, for example, [`omomo_train_new.yaml`](./intermimic/dat
    physicalBufferSize: <integer greater than 1>
    ```
 
-**When to skip PSI**
-
-OMOMO subjects `sub1`, `sub11`, `sub12`, and `sub13` include wrong flipped-hand frames that can push the motion out of bounds and stall the simulator. For those four subjects, leave `physicalBufferSize` at its default value (`1`) and train without PSI.
-
 ### Student Policy Training
 
 
