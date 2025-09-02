@@ -165,7 +165,8 @@ After finish the student policy training, run the inference with
 - [x] Release student policy distillation training
 - [x] Release processed MoCap
 - [x] Release inference pipeline for the student policy 
-- [ ] Distilled reference data (physically correct HOI data❗️), and all related checkpoints   
+- [x] Distilled reference data (physically correct HOI data❗️)
+- [ ] Release all related checkpoints   
 - [ ] Release all data and processing scripts alongside the [InterAct](https://github.com/wzyabcas/InterAct) launch  
 - [ ] Release physics-based text-to-HOI and interaction prediction demo  
 
