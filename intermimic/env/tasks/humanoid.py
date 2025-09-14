@@ -169,7 +169,6 @@ class Humanoid_SMPLX(BaseTask):
         if (len(env_ids) > 0):
             self._reset_actors(env_ids)
             self._reset_env_tensors(env_ids)
-            self.gym.simulate(self.sim)
             self._refresh_sim_tensors()
             self._compute_observations(env_ids)
         return
