@@ -158,6 +158,8 @@ After finish the student policy training, run the inference with
   sh scripts/test_student.sh
   ```
 
+Alternatively, you may try one of our pre-trained [checkpoints](https://drive.google.com/file/d/1GNFOjBRmiIIxYtfnG9WvK4fELKnDWroR/view?usp=sharing)
+
 ## 📝 TODO List  
 - [x] Release inference demo for the teacher policy  
 - [x] Add support for Unitree-G1 with dexterous robot hands
@@ -166,7 +168,7 @@ After finish the student policy training, run the inference with
 - [x] Release processed MoCap
 - [x] Release inference pipeline for the student policy 
 - [x] Distilled reference data (physically correct HOI data❗️)
-- [ ] Release all related checkpoints   
+- [x] Release all related checkpoints   
 - [ ] Release all data and processing scripts alongside the [InterAct](https://github.com/wzyabcas/InterAct) launch  
 - [ ] Release physics-based text-to-HOI and interaction prediction demo  
 
