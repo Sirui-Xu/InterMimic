@@ -119,7 +119,7 @@ Open the training config, for example, [`omomo_train_new.yaml`](./intermimic/dat
 ### Student Policy Training
 
 
-To train a student policy with distillation, execute the following commands:
+Download the [data from teacher's retargeting and correction](https://drive.google.com/file/d/1l2E5qR97Ap8jrLrJPHmtNT8DDW1qKhY_/view?usp=sharing), to train a student policy with distillation, execute the following commands:
 
   ```bash
   sh scripts/train_student.sh
