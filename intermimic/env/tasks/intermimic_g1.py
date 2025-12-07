@@ -198,6 +198,10 @@ class InterMimicG1(Humanoid_G1, InterMimic):
         return ig_all, ig, ref_ig
     
     def _compute_observations(self, env_ids=None):
+        # Ensure HOI observations (including self.ig) are computed before using _compute_ig_obs
+        # During reset, upstream may call _compute_observations without calling _compute_hoi_observations first.
+        # This guarantees self.ig is available for _compute_ig_obs.
+        self._compute_hoi_observations()
         if (env_ids is None):
             self._curr_ref_obs[:] = self.hoi_data[self.data_id[env_ids], self.progress_buf[env_ids]].clone()
             self.obs_buf[:] = torch.cat((self._compute_observations_iter(self.hoi_data, None, 1), self._compute_observations_iter(self.hoi_data, None, 16), (self.progress_buf >= 5).float().unsqueeze(1)), dim=-1)
