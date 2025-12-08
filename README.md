@@ -43,6 +43,7 @@
 </p>
 
 ## 🔥 News
+- **[2025-12-07]** 🚀 Release a data conversion pipeline for bringing [InterAct](https://github.com/wzyabcas/InterAct) into simulation. The processing code is available in the [InterAct repository](https://github.com/wzyabcas/InterAct).
 - **[2025-06-10]** Release the instruction for the student policy inference.
 - **[2025-06-03]** Initial release of PSI and the processed data. Next release: teacher policy inference for [dynamics-aware retargeting](InterAct/OMOMO_retarget), and student policy inference.
 - **[2025-05-26]** It's been a while! The student policy training pipeline has been released! The PSI and other data construction pipelines will follow soon.
@@ -169,7 +170,7 @@ Alternatively, you may try one of our pre-trained [checkpoints](https://drive.go
 - [x] Release inference pipeline for the student policy 
 - [x] Distilled reference data (physically correct HOI data❗️)
 - [x] Release all related checkpoints   
-- [ ] Release all data and processing scripts alongside the [InterAct](https://github.com/wzyabcas/InterAct) launch  
+- [x] Release all data and processing scripts alongside the [InterAct](https://github.com/wzyabcas/InterAct) launch  
 - [ ] Release physics-based text-to-HOI and interaction prediction demo  
 
 
