@@ -1,1 +1,0 @@
-python intermimic/run_distill.py --task InterMimic_All --cfg_env intermimic/data/cfg/omomo_all.yaml --cfg_train intermimic/data/cfg/train/rlg/omomo_all.yaml --headless --output checkpoints

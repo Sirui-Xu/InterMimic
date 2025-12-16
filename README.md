@@ -43,6 +43,7 @@
 </p>
 
 ## 🔥 News
+- **[2025-12-15]** 🚀 IsaacLab support is underway! Data replay is ready—more coming in the next release ☕️
 - **[2025-12-07]** 🚀 Release a data conversion pipeline for bringing [InterAct](https://github.com/wzyabcas/InterAct) into simulation. The processing code is available in the [InterAct repository](https://github.com/wzyabcas/InterAct).
 - **[2025-06-10]** Release the instruction for the student policy inference.
 - **[2025-06-03]** Initial release of PSI and the processed data. Next release: teacher policy inference for [dynamics-aware retargeting](InterAct/OMOMO_retarget), and student policy inference.
@@ -53,46 +54,87 @@
 - **[2025-04-04]** InterMimic has been selected as a CVPR Highlight Paper 🏆. More exciting developments are on the way!
 - **[2025-03-25]** We’ve officially released the codebase and checkpoint for teacher policy inference demo — give it a try! ☕️  
 
+## 🗂️ Repository Layout
+
+To keep Isaac Gym and Isaac Lab workflows isolated (and the repo root clean), the codebase is now organized as:
+
+- `isaacgym/src/intermimic`: original Isaac Gym implementation for training/inference.
+- `isaacgym/scripts`: legacy shell scripts for data replay, teacher/student training, etc.
+- `isaaclab/src/intermimic_lab`: the Isaac Lab migration with runtime environment + configs.
+- `isaaclab/examples`: the Isaac Lab data replay demo.
+- `isaaclab/scripts`: launch helpers for Isaac Lab (e.g., data replay).
+
+Python packages now live directly under `isaacgym/src` and `isaaclab/src`, so add these directories to your `PYTHONPATH` (all provided shell scripts do this automatically) when importing `intermimic` or `intermimic_lab` from custom code.
+
 ## 📖 Getting Started
 
 ### Dependencies
 
-Follow the following instructions: 
+#### Isaac Gym environment
 
-1. Create new conda environment and install pytorch:
+1. Create a dedicated conda environment (Python 3.8) and install PyTorch + repo deps:
 
     ```bash
-    conda create -n intermimic python=3.8
+    conda create -n intermimic-gym python=3.8
+    conda activate intermimic-gym
     conda install pytorch torchvision torchaudio pytorch-cuda=11.6 -c pytorch -c nvidia
     pip install -r requirement.txt
     ```
 
-    You may also build from [environment.yml](environment.yml), which might contain redundancies,
-    ```bash
-    conda env create -f environment.yml
-    ```
+    (Alternatively, start from [environment.yml](environment.yml), though it includes some optional extras.)
 
-2. Download and setup [Isaac Gym](https://developer.nvidia.com/isaac-gym). 
-
-3. Download the [dataset](https://drive.google.com/file/d/141YoPOd2DlJ4jhU2cpZO5VU5GzV_lm5j/view?usp=sharing), unzip it, and move the extracted folder to `InterAct/OMOMO_new/`. *This build contains minor fixes to the original release, so your results may deviate slightly from those reported in the paper.*
-
-
-4. Activate the environment:
+2. Fix the Isaac Gym shared-library lookup when using conda by exporting:
 
     ```bash
-    conda activate intermimic
+    export LD_LIBRARY_PATH="$CONDA_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     ```
+
+    Do this after every `conda activate intermimic-gym` before launching Gym scripts; it ensures `libpython3.8.so` is discoverable.
+
+3. Install [Isaac Gym](https://developer.nvidia.com/isaac-gym) following NVIDIA’s instructions.
+
+#### Isaac Lab environment
+
+- Install Isaac Lab separately by following the [official NVIDIA guide](https://github.com/NVIDIA-Omniverse/IsaacLab) and keep that environment isolated (typically via Isaac Sim’s python or the provided uv/conda env).
+- Export `ISAACLAB_PATH` once per shell session so our helper scripts (which source `$ISAACLAB_PATH/isaaclab.sh`) can locate your install:
+
+    ```bash
+        export ISAACLAB_PATH=/path/to/your/IsaacLab
+    ```
+- Optional: if you plan to use the `--record-video` flag in our replay script, install `imageio` (and `imageio-ffmpeg` for MP4 support) inside the Isaac Lab Python environment:
+
+    ```bash
+        $ISAACLAB_PATH/isaaclab.sh -p -m pip install --upgrade imageio imageio-ffmpeg
+    ```
+
+#### Shared data
+
+- Download the [dataset](https://drive.google.com/file/d/141YoPOd2DlJ4jhU2cpZO5VU5GzV_lm5j/view?usp=sharing), unzip it, and move the extracted folder to `InterAct/OMOMO_new/`. *This build contains minor fixes to the original release, so your results may deviate slightly from those reported in the paper.*
 
 ### Data Replay
 
+To replay the ground-truth data you now have two options:
 
-To replay the groud truth data, execute the following commands:
+**Isaac Gym (legacy)**
 
-  ```bash
-  sh scripts/data_replay.sh
-  ```
+```bash
+sh isaacgym/scripts/data_replay.sh
+```
 
-*Note*: The output colors represent the ground truth contact markers for links.
+**Isaac Lab / Isaac Sim**
+
+```bash
+./isaaclab/scripts/run_data_replay.sh --num-envs 8 --motion-dir InterAct/OMOMO_new
+```
+
+Helpful flags for the Isaac Lab demo:
+
+- `--num-envs`: sets both `cfg.num_envs` and `cfg.scene.num_envs`.
+- `--headless`: launches Isaac Sim without the viewer.
+- `--motion-dir`: dataset directory relative to `$INTERMIMIC_PATH`.
+- `--no-playback`: disables dataset playback so you can step physics manually.
+- `--record-video /path/to/video.mp4`: captures RGB frames each step (requires `imageio`).
+- `--video-fps`: frame rate for `--record-video` captures (defaults to 30 FPS).
 
 ### Teacher Policy Training
 
@@ -100,13 +142,13 @@ To replay the groud truth data, execute the following commands:
 To train a teacher policy, execute the following commands:
 
   ```bash
-  sh scripts/train_teacher.sh
+  sh isaacgym/scripts/train_teacher.sh
   ```
 
 A higher‑fidelity simulation enough for low-dynamic interaction (trading off some efficiency for realism):
 
   ```bash
-  sh scripts/train_teacher_new.sh
+  sh isaacgym/scripts/train_teacher_new.sh
   ```
 
 **How to enable PSI**
@@ -123,7 +165,7 @@ Open the training config, for example, [`omomo_train_new.yaml`](./intermimic/dat
 Download the [data from teacher's retargeting and correction](https://drive.google.com/file/d/1l2E5qR97Ap8jrLrJPHmtNT8DDW1qKhY_/view?usp=sharing), to train a student policy with distillation, execute the following commands:
 
   ```bash
-  sh scripts/train_student.sh
+  sh isaacgym/scripts/train_student.sh
   ```
 
 ### Teacher Policy Inference
@@ -135,19 +177,19 @@ We’ve released a checkpoint for one (out of 17) teacher policy on OMOMO, along
 2. Then, run the following commands:
 
     ```bash
-    sh scripts/test_teacher.sh
+    sh isaacgym/scripts/test_teacher.sh
     ```
 
 3. Run the high‑fidelity modeling (trading off some efficiency for realism):
 
     ```bash
-    sh scripts/test_teacher_new.sh
+    sh isaacgym/scripts/test_teacher_new.sh
     ```
 
 4. 🔥 To try it on the Unitree G1 with its three-fingered dexterous hand—directly learned from MoCap without any external retargeting:
 
     ```bash
-    sh scripts/test_g1.sh
+    sh isaacgym/scripts/test_g1.sh
     ```
 
 ### Student Policy Inference
@@ -156,7 +198,7 @@ We’ve released a checkpoint for one (out of 17) teacher policy on OMOMO, along
 After finish the student policy training, run the inference with
 
   ```bash
-  sh scripts/test_student.sh
+  sh isaacgym/scripts/test_student.sh
   ```
 
 Alternatively, you may try one of our pre-trained [checkpoints](https://drive.google.com/file/d/1GNFOjBRmiIIxYtfnG9WvK4fELKnDWroR/view?usp=sharing)

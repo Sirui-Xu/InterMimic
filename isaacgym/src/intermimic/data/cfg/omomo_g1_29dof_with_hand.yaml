@@ -1,0 +1,85 @@
+# if given, will override the device setting in gym. 
+env: 
+  numEnvs: 2048
+  envSpacing: 1.5
+  episodeLength: 1000
+  isFlagrun: False
+  enableDebugVis: False
+  playdataset: False
+  projtype: "None"
+  saveImages: False
+  initVel: False
+  moreRigid: False
+  pdControl: True
+  powerScale: 1.0
+  controlFrequencyInv: 2 # 30 Hz
+  stateInit: "Start" #Random
+  rolloutLength: 1000
+  hybridInitProb: 0.5
+  dataFPS: 30
+  dataFramesScale: 1 # 25->30fps
+  dataSub: ['sub8']
+  ballSize: 1.
+  numObs: 2153
+  numDoF: 43
+  numDoFWrist: 3
+  numDoFHand: 7
+  motion_file: InterAct/OMOMO_retarget
+  robotType: 'g1/g1_29dof_with_hand.urdf'
+  objectDensity: 25
+  localRootObs: False
+  keyBodies: ['left_hip_yaw_link', 'left_knee_link', 'left_ankle_roll_link', 'right_hip_yaw_link', 'right_knee_link', 'right_ankle_roll_link', 'torso_link', 'mid360_link', 'left_shoulder_yaw_link', 'left_elbow_link', 'left_wrist_yaw_link', 'left_hand_index_tip_link', 'left_hand_middle_tip_link', 'left_hand_thumb_tip_link', 'right_shoulder_yaw_link', 'right_elbow_link', 'right_wrist_yaw_link', 'right_hand_index_tip_link', 'right_hand_middle_tip_link', 'right_hand_thumb_tip_link']
+  keyIndex: [ 1,  2,  3,  5,  6,  7,  9, 13, 15,  16,  17, 20, 23, 32, 34, 35, 36, 39, 42, 51]
+  contactBodies: ['left_hip_yaw_link', 'left_knee_link', 'left_ankle_roll_link', 'right_hip_yaw_link', 'right_knee_link', 'right_ankle_roll_link', 'torso_link', 'mid360_link', 'left_shoulder_yaw_link', 'left_elbow_link', 'left_wrist_yaw_link', 'left_hand_index_1_link', 'left_hand_middle_1_link', 'left_hand_thumb_2_link', 'right_shoulder_yaw_link', 'right_elbow_link', 'right_wrist_yaw_link', 'right_hand_index_1_link', 'right_hand_middle_1_link', 'right_hand_thumb_2_link']
+  contactIndex: [ 1,  2,  3,  5,  6,  7,  9, 13, 15,  16,  17, 20, 23, 32, 34, 35, 36, 39, 42, 51]
+  terminationHeight: 0.15
+  enableEarlyTermination: True
+  scaling: 0.75
+  initRootHeight: 0.94
+
+  asset:
+    assetRoot: "intermimic/data/assets"
+
+  plane:
+    staticFriction: 0.9
+    dynamicFriction: 0.9
+    restitution: 0.7
+  
+  rewardWeights:
+    p: 10.
+    r: 10.
+    pv: 0.
+    rv: 0.
+
+    op: 0.
+    or: 0.1
+    opv: 0.01
+    orv: 0.
+
+    ig: 20.
+
+    cg1: 5.
+    cg2: 5.
+
+    eg1: 0.00005
+    eg2: 0.00005
+    eg3: 0.000000005
+
+sim:
+  substeps: 2
+  physx:
+    num_threads: 4
+    solver_type: 1  # 0: pgs, 1: tgs
+    num_position_iterations: 4
+    num_velocity_iterations: 0
+    contact_offset: 0.02
+    rest_offset: 0.0
+    bounce_threshold_velocity: 0.2
+    max_depenetration_velocity: 50.0
+    default_buffer_size_multiplier: 20.0
+    # max_gpu_contact_pairs: 16777216
+
+  flex:
+    num_inner_iterations: 10
+    warm_start: 0.25
+

@@ -2,7 +2,7 @@
 env: 
   numEnvs: 4096
   envSpacing: 5
-  episodeLength: 300
+  episodeLength: 1000
   isFlagrun: False
   enableDebugVis: False
   playdataset: False
@@ -13,8 +13,8 @@ env:
   pdControl: True
   powerScale: 1.0
   controlFrequencyInv: 2 # 30 Hz
-  stateInit: "Hybrid" #Random
-  rolloutLength: 300
+  stateInit: "Start" #Random
+  rolloutLength: 1000
   hybridInitProb: 0.5
   dataFPS: 30
   dataFramesScale: 1 # 25->30fps

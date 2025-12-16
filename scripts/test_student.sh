@@ -1,1 +1,0 @@
-python intermimic/run_distill.py --task InterMimic_All --cfg_env intermimic/data/cfg/omomo_all_test.yaml --cfg_train intermimic/data/cfg/train/rlg/omomo_all.yaml --test --checkpoint checkpoints/smplx_student/nn/mimic.pth --num_envs 16

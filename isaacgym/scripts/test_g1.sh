@@ -1,0 +1,1 @@
+python intermimic/run.py --task InterMimicG1 --cfg_env intermimic/data/cfg/omomo_g1_29dof_with_hand.yaml --cfg_train intermimic/data/cfg/train/rlg/omomo_g1_29dof_with_hand.yaml --checkpoint checkpoints/g1/sub8.pth --test --num_envs 16
