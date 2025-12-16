@@ -93,17 +93,9 @@ Python packages now live directly under `isaacgym/src` and `isaaclab/src`, so ad
 
     Do this after every `conda activate intermimic-gym` before launching Gym scripts; it ensures `libpython3.8.so` is discoverable.
 
-4. Make the InterMimic sources importable for custom scripts (the provided shell launchers already do this):
-
-    ```bash
-    export PYTHONPATH=/path/to/InterMimic/isaacgym/src:/path/to/InterMimic:$PYTHONPATH
-    ```
-
-    (Or run `pip install -e isaacgym/src` inside the Gym environment.)
-
 #### Isaac Lab environment
 
-- Install Isaac Lab separately by following the [official NVIDIA guide](https://github.com/NVIDIA-Omniverse/IsaacLab) and keep that environment isolated (typically via Isaac Sim’s python or the provided uv/conda env).
+- Install Isaac Lab separately by following the [official guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html) and keep that environment isolated (typically via Isaac Sim’s python or the provided uv/conda env).
 - Export `ISAACLAB_PATH` once per shell session so our helper scripts (which source `$ISAACLAB_PATH/isaaclab.sh`) can locate your install:
 
     ```bash
