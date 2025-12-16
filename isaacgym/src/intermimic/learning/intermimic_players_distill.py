@@ -28,7 +28,7 @@
 
 import torch
 import numpy as np
-import learning.intermimic_players as intermimic_players
+from . import intermimic_players
 
 class InterMimicPlayerContinuousDistill(intermimic_players.InterMimicPlayerContinuous):
     def __init__(self, config):

@@ -40,7 +40,7 @@ from torch import optim
 import torch 
 from torch import nn
 
-import learning.common_agent as common_agent
+from . import common_agent
 
 from tensorboardX import SummaryWriter
 

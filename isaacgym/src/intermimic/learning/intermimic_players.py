@@ -31,7 +31,7 @@ import torch, time
 from rl_games.algos_torch import torch_ext
 from rl_games.algos_torch.running_mean_std import RunningMeanStd
 
-import learning.common_player as common_player
+from . import common_player
 
 class InterMimicPlayerContinuous(common_player.CommonPlayer):
     def __init__(self, config):

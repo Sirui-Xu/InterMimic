@@ -83,7 +83,9 @@ Python packages now live directly under `isaacgym/src` and `isaaclab/src`, so ad
 
     (Alternatively, start from [environment.yml](environment.yml), though it includes some optional extras.)
 
-2. Fix the Isaac Gym shared-library lookup when using conda by exporting:
+2. Install [Isaac Gym](https://developer.nvidia.com/isaac-gym) following NVIDIA’s instructions.
+
+3. Fix the Isaac Gym shared-library lookup when using conda by exporting:
 
     ```bash
     export LD_LIBRARY_PATH="$CONDA_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -91,7 +93,13 @@ Python packages now live directly under `isaacgym/src` and `isaaclab/src`, so ad
 
     Do this after every `conda activate intermimic-gym` before launching Gym scripts; it ensures `libpython3.8.so` is discoverable.
 
-3. Install [Isaac Gym](https://developer.nvidia.com/isaac-gym) following NVIDIA’s instructions.
+4. Make the InterMimic sources importable for custom scripts (the provided shell launchers already do this):
+
+    ```bash
+    export PYTHONPATH=/path/to/InterMimic/isaacgym/src:/path/to/InterMimic:$PYTHONPATH
+    ```
+
+    (Or run `pip install -e isaacgym/src` inside the Gym environment.)
 
 #### Isaac Lab environment
 
@@ -99,12 +107,12 @@ Python packages now live directly under `isaacgym/src` and `isaaclab/src`, so ad
 - Export `ISAACLAB_PATH` once per shell session so our helper scripts (which source `$ISAACLAB_PATH/isaaclab.sh`) can locate your install:
 
     ```bash
-        export ISAACLAB_PATH=/path/to/your/IsaacLab
+    export ISAACLAB_PATH=/path/to/your/IsaacLab
     ```
 - Optional: if you plan to use the `--record-video` flag in our replay script, install `imageio` (and `imageio-ffmpeg` for MP4 support) inside the Isaac Lab Python environment:
 
     ```bash
-        $ISAACLAB_PATH/isaaclab.sh -p -m pip install --upgrade imageio imageio-ffmpeg
+    $ISAACLAB_PATH/isaaclab.sh -p -m pip install --upgrade imageio imageio-ffmpeg
     ```
 
 #### Shared data
@@ -153,7 +161,7 @@ A higher‑fidelity simulation enough for low-dynamic interaction (trading off s
 
 **How to enable PSI**
 
-Open the training config, for example, [`omomo_train_new.yaml`](./intermimic/data/cfg/omomo_train_new.yaml). Set
+Open the training config, for example, [`omomo_train_new.yaml`](./isaacgym/src/intermimic/data/cfg/omomo_train_new.yaml). Set
 
    ```yaml
    physicalBufferSize: <integer greater than 1>

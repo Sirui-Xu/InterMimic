@@ -38,7 +38,7 @@ from rl_games.common import a2c_common
 import torch
 from torch import optim
 
-import learning.amp_datasets as amp_datasets
+from . import amp_datasets as amp_datasets
 
 from tensorboardX import SummaryWriter
 

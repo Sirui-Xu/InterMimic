@@ -1,9 +1,10 @@
 import torch
-from env.tasks.intermimic import InterMimic
+from .intermimic import InterMimic
 
 from isaacgym.torch_utils import *
 from rl_games.algos_torch import torch_ext
-from learning import intermimic_network_builder, intermimic_models_teacher
+from ...learning import intermimic_network_builder, intermimic_models_teacher
+from ...utils.path_utils import resolve_data_path, resolve_repo_path
 from torch.func import vmap
 from functorch import make_functional
 import os
@@ -37,13 +38,14 @@ class InterMimic_All(InterMimic):
             'value_size': 1,
         }
         network = intermimic_network_builder.InterMimicBuilder()
-        with open(os.path.join(os.getcwd(), cfg["env"]["teacherPolicyCFG"]), 'r') as f:
+        teacher_cfg_path = resolve_data_path("cfg", "train", "rlg", os.path.basename(cfg["env"]["teacherPolicyCFG"]))
+        with open(teacher_cfg_path, 'r') as f:
             cfg_teacher = yaml.load(f, Loader=yaml.SafeLoader)
 
         network.load(cfg_teacher['params']['network'])
         network = intermimic_models_teacher.ModelInterMimicContinuous(network)
-        teacher_policy = cfg["env"]["teacherPolicy"]
-        models_path = get_all_paths(teacher_policy)
+        teacher_policy = resolve_repo_path(cfg["env"]["teacherPolicy"])
+        models_path = get_all_paths(str(teacher_policy))
         self.models = []
         self.functional_models = []
         self.params_list = []

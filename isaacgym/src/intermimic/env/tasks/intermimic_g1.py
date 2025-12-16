@@ -3,10 +3,10 @@ import torch
 from isaacgym import gymtorch
 from isaacgym.torch_utils import *
 
-from utils import torch_utils
+from ...utils import torch_utils
 import torch.nn.functional as F
-from env.tasks.humanoid_g1 import Humanoid_G1
-from env.tasks.intermimic import InterMimic, compute_sdf
+from .humanoid_g1 import Humanoid_G1
+from .intermimic import InterMimic, compute_sdf
 
 
 class InterMimicG1(Humanoid_G1, InterMimic):

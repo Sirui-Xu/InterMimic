@@ -7,10 +7,12 @@ from isaacgym import gymtorch
 from isaacgym import gymapi
 from isaacgym.torch_utils import *
 
-from utils import torch_utils
+from ...utils import torch_utils
 import torch.nn.functional as F
-from env.tasks.humanoid import *
+from .humanoid import *
 import trimesh
+
+from ...utils.path_utils import resolve_data_path
 
 
 
@@ -277,14 +279,14 @@ class InterMimic(Humanoid_SMPLX):
         return   
 
     def _load_target_asset(self): # smplx
-        asset_root = "intermimic/data/assets/objects/"
+        asset_root = resolve_data_path("assets", "objects")
         self._target_asset = []
         points_num = []
         self.object_points = []
         for i, object_name in enumerate(self.object_name):
 
             asset_file = object_name + ".urdf"
-            obj_file = asset_root + 'objects/' + object_name + '/' + object_name + '.obj'
+            obj_file = resolve_data_path("assets", "objects", "objects", object_name, object_name + ".obj")
             max_convex_hulls = 64
             density = self.object_density
         
@@ -300,9 +302,9 @@ class InterMimic(Humanoid_SMPLX):
             asset_options.vhacd_params.resolution = 300000
 
 
-            self._target_asset.append(self.gym.load_asset(self.sim, asset_root, asset_file, asset_options))
+            self._target_asset.append(self.gym.load_asset(self.sim, str(asset_root), asset_file, asset_options))
 
-            mesh_obj = trimesh.load(obj_file, force='mesh')
+            mesh_obj = trimesh.load(str(obj_file), force='mesh')
             obj_verts = mesh_obj.vertices
             center = np.mean(obj_verts, 0)
             object_points, object_faces = trimesh.sample.sample_surface_even(mesh_obj, count=1024, seed=2024)
@@ -1090,9 +1092,10 @@ class InterMimic(Humanoid_SMPLX):
                 else:
                     frame_id = self.progress_buf[env_ids]
                 dataname = self.motion_file[-1][6:-3]
-                rgb_filename = "intermimic/data/images/" + dataname + "/rgb_env%d_frame%05d.png" % (env_ids, frame_id)
-                os.makedirs("intermimic/data/images/" + dataname, exist_ok=True)
-                self.gym.write_viewer_image_to_file(self.viewer,rgb_filename)
+                images_dir = resolve_data_path("images", dataname, must_exist=False)
+                images_dir.mkdir(parents=True, exist_ok=True)
+                rgb_filename = images_dir / ("rgb_env%d_frame%05d.png" % (env_ids, frame_id))
+                self.gym.write_viewer_image_to_file(self.viewer, str(rgb_filename))
         return
     
 @torch.jit.script

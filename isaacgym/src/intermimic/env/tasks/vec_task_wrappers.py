@@ -29,7 +29,7 @@
 from gym import spaces
 import numpy as np
 import torch
-from env.tasks.vec_task import VecTaskCPU, VecTaskGPU, VecTaskPython
+from .vec_task import VecTaskCPU, VecTaskGPU, VecTaskPython
 
 class VecTaskCPUWrapper(VecTaskCPU):
     def __init__(self, task, rl_device, sync_frame_time=False, clip_observations=5.0, clip_actions=1.0):

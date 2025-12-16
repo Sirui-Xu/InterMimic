@@ -34,7 +34,7 @@ import numpy as np
 import torch 
 from torch import nn
 
-import learning.intermimic_agent as intermimic_agent
+from . import intermimic_agent
 
 
 class InterMimicAgentDistill(intermimic_agent.InterMimicAgent):

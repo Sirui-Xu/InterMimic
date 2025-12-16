@@ -29,8 +29,8 @@
 import os
 # os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
-from utils.config import set_np_formatting, set_seed, get_args, parse_sim_params, load_cfg
-from utils.parse_task import parse_task
+from .utils.config import set_np_formatting, set_seed, get_args, parse_sim_params, load_cfg
+from .utils.parse_task import parse_task
 
 from rl_games.algos_torch import torch_ext
 from rl_games.common import env_configurations, vecenv
@@ -41,10 +41,10 @@ import numpy as np
 import copy
 import torch
 
-from learning import intermimic_agent
-from learning import intermimic_players
-from learning import intermimic_models
-from learning import intermimic_network_builder
+from .learning import intermimic_agent
+from .learning import intermimic_players
+from .learning import intermimic_models
+from .learning import intermimic_network_builder
 
 args = None
 cfg = None

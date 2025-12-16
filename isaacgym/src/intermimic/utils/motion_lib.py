@@ -34,7 +34,7 @@ from poselib.poselib.skeleton.skeleton3d import SkeletonMotion
 from poselib.poselib.core.rotation3d import *
 from isaacgym.torch_utils import *
 
-from utils import torch_utils
+from . import torch_utils
 
 import torch
 

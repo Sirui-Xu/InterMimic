@@ -29,6 +29,8 @@
 import os
 import yaml
 
+from .path_utils import resolve_repo_path
+
 from isaacgym import gymapi
 from isaacgym import gymutil
 
@@ -77,10 +79,12 @@ def set_seed(seed, torch_deterministic=False):
 
 
 def load_cfg(args):
-    with open(os.path.join(os.getcwd(), args.cfg_train), 'r') as f:
+    cfg_train_path = resolve_repo_path(args.cfg_train)
+    cfg_env_path = resolve_repo_path(args.cfg_env)
+    with open(cfg_train_path, 'r') as f:
         cfg_train = yaml.load(f, Loader=yaml.SafeLoader)
 
-    with open(os.path.join(os.getcwd(), args.cfg_env), 'r') as f:
+    with open(cfg_env_path, 'r') as f:
         cfg = yaml.load(f, Loader=yaml.SafeLoader)
 
     # Override number of environments if passed on the command line

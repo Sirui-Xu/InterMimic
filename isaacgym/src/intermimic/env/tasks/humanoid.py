@@ -29,12 +29,14 @@ import numpy as np
 import torch
 import os
 
+from ...utils.path_utils import resolve_repo_path
+from ...utils import torch_utils
+
 from isaacgym import gymtorch
 from isaacgym import gymapi
 from isaacgym.torch_utils import *
 
-from utils import torch_utils
-from env.tasks.base_task import BaseTask
+from .base_task import BaseTask
 
 
 
@@ -213,12 +215,12 @@ class Humanoid_SMPLX(BaseTask):
         lower = gymapi.Vec3(-spacing, -spacing, 0.0)
         upper = gymapi.Vec3(spacing, spacing, spacing)
 
-        asset_root = self.cfg["env"]["asset"]["assetRoot"]
+        asset_root_cfg = self.cfg["env"]["asset"]["assetRoot"]
         asset_file = self.robot_type
 
-        asset_path = os.path.join(asset_root, asset_file)
-        asset_root = os.path.dirname(asset_path)
-        asset_file = os.path.basename(asset_path)
+        asset_path = resolve_repo_path(os.path.join(asset_root_cfg, asset_file))
+        asset_root = str(asset_path.parent)
+        asset_file = asset_path.name
 
         asset_options = gymapi.AssetOptions()
         asset_options.angular_damping = 0.01
