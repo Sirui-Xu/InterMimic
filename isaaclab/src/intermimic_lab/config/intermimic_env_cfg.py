@@ -20,8 +20,8 @@ class InterMimicEnvCfg(DirectRLEnvCfg):
 
     # Simulation parameters
     sim: SimulationCfg = SimulationCfg(
-        dt=1/60,  # Physics simulation timestep (60 Hz)
-        render_interval=2,  # Render every 2 physics steps
+        dt=1/120,  # Physics simulation timestep (60 Hz)
+        render_interval=4,  # Render every 2 physics steps
         physx=PhysxCfg(
             solver_type=1,  # 0: PGS, 1: TGS (Temporal Gauss-Seidel)
             min_position_iteration_count=4,
@@ -29,7 +29,8 @@ class InterMimicEnvCfg(DirectRLEnvCfg):
             min_velocity_iteration_count=1,
             max_velocity_iteration_count=1,
             bounce_threshold_velocity=0.2,
-            gpu_max_rigid_contact_count=34603008,  # 8*1024*1024
+            gpu_max_rigid_contact_count=34603008,  # 8*1024*1024,
+            enable_ccd=True,
         ),
     )
 
@@ -42,15 +43,15 @@ class InterMimicEnvCfg(DirectRLEnvCfg):
 
     # Environment parameters
     episode_length_s: float = 10.0  # Episode duration in seconds (300 steps @ 30Hz)
-    decimation: int = 2  # Control frequency = physics_freq / decimation = 60/2 = 30 Hz
+    decimation: int = 4  # Control frequency = physics_freq / decimation = 60/2 = 30 Hz
     num_envs: int = 4096  # Number of parallel environments
     observation_space: int = 3198  # Flat observation vector for policy
     num_observations: int = 3198  # Observation space size
     action_space: int = 153  # Flat action vector
     num_actions: int = 153  # Action space size: 51 joints × 3 DOFs
     play_dataset: bool = False  # Enable motion replay instead of control
-    replay_root_height_offset: float = 0.0  # Optional Z offset during mocap replay
-    replay_object_height_offset: float = 0.0  # Optional Z offset for objects during replay
+    replay_root_height_offset: float = 0.03  # Optional Z offset during mocap replay
+    replay_object_height_offset: float = 0.03  # Optional Z offset for objects during replay
 
     # State initialization
     state_init: str = "Hybrid"  # Options: "Default", "Start", "Random", "Hybrid"
@@ -70,6 +71,16 @@ class InterMimicEnvCfg(DirectRLEnvCfg):
     object_density: float = 200.0  # Density for dynamic objects (kg/m^3)
     ball_size: float = 1.0  # Size scaling for ball objects
 
+    # Object physics material (matching Isaac Gym intermimic.py:333-340)
+    @configclass
+    class ObjectPhysicsCfg:
+        static_friction: float = 0.6
+        dynamic_friction: float = 0.6
+        restitution: float = 0.05  # Bounciness
+        # rest_offset varies by object type (0.015 for plasticbox/trashcan, 0.002 for others)
+
+    object_physics: ObjectPhysicsCfg = ObjectPhysicsCfg()
+
     # Termination conditions
     termination_height: float = 0.15  # Terminate if root below this height (meters)
     enable_early_termination: bool = True
@@ -84,6 +95,9 @@ class InterMimicEnvCfg(DirectRLEnvCfg):
 
     # Observation flags
     local_root_obs: bool = False  # Use local or global root observations
+
+    # Visualization
+    enable_reference_markers: bool = True  # Show reference motion markers (joints and object)
 
     # Ground plane friction
     @configclass

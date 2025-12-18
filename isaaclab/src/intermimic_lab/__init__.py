@@ -9,6 +9,7 @@ from .config import (
     InterMimicSceneCfg,
     INTERMIMIC_SCENE_CFG,
 )
+from .policy_loader import load_policy, IsaacGymPolicyWrapper
 
 __version__ = "0.1.0"
 
@@ -20,4 +21,6 @@ __all__ = [
     "SMPLX_HUMANOID_CFG",
     "InterMimicSceneCfg",
     "INTERMIMIC_SCENE_CFG",
+    "load_policy",
+    "IsaacGymPolicyWrapper",
 ]

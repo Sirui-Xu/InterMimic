@@ -43,6 +43,7 @@
 </p>
 
 ## 🔥 News
+- **[2025-12-17]** 🚀 Isaac Gym checkpoints are compatible with IsaacLab inference?! Check out the newly released implementation.
 - **[2025-12-15]** 🚀 IsaacLab support is underway! Data replay is ready—more coming in the next release ☕️
 - **[2025-12-07]** 🚀 Release a data conversion pipeline for bringing [InterAct](https://github.com/wzyabcas/InterAct) into simulation. The processing code is available in the [InterAct repository](https://github.com/wzyabcas/InterAct).
 - **[2025-06-10]** Release the instruction for the student policy inference.
@@ -53,18 +54,6 @@
 - **[2025-04-05]** We're excited by the overwhelming interest in humanoid robot support and are ahead of schedule in open-sourcing our Unitree-G1 integration—starting with a small demo with support for G1 with its original three-finger dexterous hands. Join us in exploring whole-body loco-manipulation with humanoid robots!
 - **[2025-04-04]** InterMimic has been selected as a CVPR Highlight Paper 🏆. More exciting developments are on the way!
 - **[2025-03-25]** We’ve officially released the codebase and checkpoint for teacher policy inference demo — give it a try! ☕️  
-
-## 🗂️ Repository Layout
-
-To keep Isaac Gym and Isaac Lab workflows isolated (and the repo root clean), the codebase is now organized as:
-
-- `isaacgym/src/intermimic`: original Isaac Gym implementation for training/inference.
-- `isaacgym/scripts`: legacy shell scripts for data replay, teacher/student training, etc.
-- `isaaclab/src/intermimic_lab`: the Isaac Lab migration with runtime environment + configs.
-- `isaaclab/examples`: the Isaac Lab data replay demo.
-- `isaaclab/scripts`: launch helpers for Isaac Lab (e.g., data replay).
-
-Python packages now live directly under `isaacgym/src` and `isaaclab/src`, so add these directories to your `PYTHONPATH` (all provided shell scripts do this automatically) when importing `intermimic` or `intermimic_lab` from custom code.
 
 ## 📖 Getting Started
 
@@ -191,6 +180,20 @@ We’ve released a checkpoint for one (out of 17) teacher policy on OMOMO, along
     ```bash
     sh isaacgym/scripts/test_g1.sh
     ```
+
+5. 🔥 Test policy inference on IsaacLab using Isaac Gym checkpoints (requires `ISAACLAB_PATH` to be set):
+
+    ```bash
+    export ISAACLAB_PATH=/path/to/IsaacLab
+    ./isaaclab/scripts/test_policy.sh --checkpoint checkpoints/smplx_teachers/sub2.pth --num_envs 16
+    ```
+
+    Options:
+    - `--checkpoint PATH`: Path to checkpoint file
+    - `--num_envs N`: Number of environments (default: 16)
+    - `--headless`: Run without rendering
+
+    The test suite validates environment creation, observation dimensions, and basic stepping. Core testing logic is in `isaaclab/examples/test_policy_inference.py`.
 
 ### Student Policy Inference
 
