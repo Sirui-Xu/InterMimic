@@ -104,13 +104,13 @@
 
 To replay the ground-truth data you now have two options:
 
-**Isaac Gym (legacy)**
+**Isaac Gym**
 
 ```bash
 sh isaacgym/scripts/data_replay.sh
 ```
 
-**Isaac Lab / Isaac Sim**
+**Isaac Lab**
 
 ```bash
 ./isaaclab/scripts/run_data_replay.sh --num-envs 8 --motion-dir InterAct/OMOMO_new
@@ -169,6 +169,12 @@ We’ve released a checkpoint for one (out of 17) teacher policy on OMOMO, along
     sh isaacgym/scripts/test_teacher.sh
     ```
 
+   For quantitative evaluation with metrics (execution steps, pose errors, success rate):
+
+    ```bash
+    sh isaacgym/scripts/eval_teacher.sh
+    ```
+
 3. Run the high‑fidelity modeling (trading off some efficiency for realism):
 
     ```bash
@@ -202,6 +208,12 @@ After finish the student policy training, run the inference with
 
   ```bash
   sh isaacgym/scripts/test_student.sh
+  ```
+
+For quantitative evaluation with metrics (execution steps, pose errors, success rate):
+
+  ```bash
+  sh isaacgym/scripts/eval_student.sh
   ```
 
 Alternatively, you may try one of our pre-trained [checkpoints](https://drive.google.com/file/d/1GNFOjBRmiIIxYtfnG9WvK4fELKnDWroR/view?usp=sharing)

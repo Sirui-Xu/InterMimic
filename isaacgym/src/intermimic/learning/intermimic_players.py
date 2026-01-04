@@ -48,7 +48,7 @@ class InterMimicPlayerContinuous(common_player.CommonPlayer):
         sum_rewards = 0
         sum_steps = 0
         sum_game_res = 0
-        n_games = n_games * n_game_life
+        n_games = n_games * n_game_life * 10
         games_played = 0
         has_masks = False
         has_masks_func = getattr(self.env, "has_action_mask", None) is not None
@@ -141,6 +141,10 @@ class InterMimicPlayerContinuous(common_player.CommonPlayer):
                             break
                     
                     done_indices = done_indices[:, 0]
+
+        # Print final evaluation summary if evaluation is enabled
+        if hasattr(self.env.task, 'print_final_eval_summary'):
+            self.env.task.print_final_eval_summary()
 
         return
     
