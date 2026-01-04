@@ -718,12 +718,14 @@ class InterMimic(Humanoid_SMPLX):
     def _compute_observations(self, env_ids=None):
         if (env_ids is None):
             self._curr_ref_obs[:] = self.hoi_data[self.data_id[env_ids], self.progress_buf[env_ids]].clone()
+            # Teacher policy always uses MLP (2 time steps: 1, 16)
             self.obs_buf[:] = torch.cat((self._compute_observations_iter(self.hoi_data, None, 1), self._compute_observations_iter(self.hoi_data, None, 16)), dim=-1)
 
         else:
             self._curr_ref_obs[env_ids] = self.hoi_data[self.data_id[env_ids], self.progress_buf[env_ids]].clone()
+            # Teacher policy always uses MLP (2 time steps: 1, 16)
             self.obs_buf[env_ids] = torch.cat((self._compute_observations_iter(self.hoi_data, env_ids, 1), self._compute_observations_iter(self.hoi_data, env_ids, 16)), dim=-1)
-            
+
         return
     
     def _compute_hoi_observations(self, env_ids=None):

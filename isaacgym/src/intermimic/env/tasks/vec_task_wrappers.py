@@ -66,6 +66,10 @@ class VecTaskDAggerWrapper(VecTaskPythonWrapper):
     def __init__(self, task, rl_device, clip_observations=5.0, clip_actions=1.0):
         super().__init__(task, rl_device, clip_observations, clip_actions)
 
+        # Override observation space to use retarget observation size (student policy)
+        num_obs_retarget = task.obs_buf_retarget.shape[1]
+        self.obs_space = spaces.Box(np.ones(num_obs_retarget) * -np.Inf, np.ones(num_obs_retarget) * np.Inf)
+
         self._amp_obs_space = spaces.Box(np.ones(task.get_num_amp_obs()) * -np.Inf, np.ones(task.get_num_amp_obs()) * np.Inf)
         # self._amp_obs_space = spaces.Box(np.ones(task.get_num_amp_obs()+2) * -np.Inf, np.ones(task.get_num_amp_obs()+2) * np.Inf)
         return

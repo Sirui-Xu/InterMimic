@@ -1,5 +1,5 @@
-# if given, will override the device setting in gym. 
-env: 
+# if given, will override the device setting in gym.
+env:
   numEnvs: 4096
   envSpacing: 5
   episodeLength: 300
@@ -20,8 +20,8 @@ env:
   dataFramesScale: 1 # 25->30fps
   ballSize: 1.
   numObs: 3198  # Teacher policy uses MLP (2 time steps: 1, 16)
-  numObsRetarget: 3198  # Student policy uses MLP (2 time steps: 1, 16)
-  useTransformerObs: False  # Student uses MLP
+  numObsRetarget: 6396  # Student policy uses Transformer (4 time steps: 0, 1, 4, 16)
+  useTransformerObs: True  # Student uses Transformer
   motion_file: InterAct/OMOMO
   motion_file_retarget: InterAct/OMOMO_retarget
   robotType: "smplx/omomo.xml"
@@ -45,7 +45,7 @@ env:
     staticFriction: 0.9
     dynamicFriction: 0.9
     restitution: 0.7
-  
+
   rewardWeights:
     p: 30.
     r: 2.5

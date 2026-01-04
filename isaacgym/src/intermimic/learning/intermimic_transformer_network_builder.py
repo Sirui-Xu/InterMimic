@@ -68,10 +68,12 @@ class InterMimicBuilder(network_builder.A2CBuilder):
                     self.sigma = nn.Parameter(torch.zeros(actions_num, requires_grad=False, dtype=torch.float32), requires_grad=False)
                     sigma_init(self.sigma)
             input_shape = kwargs.pop('input_shape')[0]
+            # Transformer expects 4 timesteps, so divide total observation size by 4
+            obs_per_timestep = input_shape // 4
             ff_size = 512
             num_channels = 256
             num_heads = 4
-            self.MLPEmbedding = nn.Linear(input_shape, num_channels)
+            self.MLPEmbedding = nn.Linear(obs_per_timestep, num_channels)
             self.PositionalEmbedding = PositionalEncoding(d_model=num_channels)
             from torch.nn import TransformerEncoderLayer
             seqTransEncoderLayer = TransformerEncoderLayer(d_model=num_channels,
@@ -84,7 +86,6 @@ class InterMimicBuilder(network_builder.A2CBuilder):
             self.MLPEmbedding = torch.compile(self.MLPEmbedding)
             self.PositionalEmbedding = torch.compile(self.PositionalEmbedding)
             self.encoder = torch.compile(self.encoder)
-
             return
 
         def forward(self, obs_dict):
@@ -93,7 +94,7 @@ class InterMimicBuilder(network_builder.A2CBuilder):
             states = obs_dict.get('rnn_states', None)
 
             actor_outputs = self.eval_actor(obs_view)
-            value = self.eval_critic(obs_view[:, 0])
+            value = self.eval_critic(obs)
 
             output = actor_outputs + (value, states)
 
@@ -132,9 +133,11 @@ class InterMimicBuilder(network_builder.A2CBuilder):
             return
 
         def eval_critic(self, obs):
+            # For transformer: obs is [batch, 6396], reshape to [batch, 4, 1599] and take first timestep
+            # Embed to num_channels, then pass through critic MLP
             c_out = self.critic_cnn(obs)
             c_out = c_out.contiguous().view(c_out.size(0), -1)
-            c_out = self.critic_mlp(c_out)              
+            c_out = self.critic_mlp(c_out)
             value = self.value_act(self.value(c_out))
             return value
 

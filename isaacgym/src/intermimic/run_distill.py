@@ -174,8 +174,12 @@ def build_alg_runner(algo_observer):
 
     runner.algo_factory.register_builder('intermimic', lambda **kwargs : intermimic_agent_distill.InterMimicAgentDistill(**kwargs))
     runner.player_factory.register_builder('intermimic', lambda **kwargs : intermimic_players_distill.InterMimicPlayerContinuousDistill(**kwargs))
-    runner.model_builder.model_factory.register_builder('intermimic', lambda network, **kwargs : intermimic_models.ModelInterMimicContinuous(network))  
+    runner.model_builder.model_factory.register_builder('intermimic', lambda network, **kwargs : intermimic_models.ModelInterMimicContinuous(network))
     runner.model_builder.network_factory.register_builder('intermimic', lambda **kwargs : intermimic_network_builder.InterMimicBuilder())
+
+    # Register transformer-based network builder as an option
+    from .learning import intermimic_transformer_network_builder
+    runner.model_builder.network_factory.register_builder('intermimic_transformer', lambda **kwargs : intermimic_transformer_network_builder.InterMimicBuilder())
 
     return runner
 

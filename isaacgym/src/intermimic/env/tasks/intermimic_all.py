@@ -21,6 +21,8 @@ class InterMimic_All(InterMimic):
 
     def __init__(self, cfg, sim_params, physics_engine, device_type, device_id, headless):
         super().__init__(cfg=cfg, sim_params=sim_params, physics_engine=physics_engine, device_type=device_type, device_id=device_id, headless=headless)
+        # Read transformer observation flag (only used for student policy)
+        self.use_transformer_obs = cfg['env'].get('useTransformerObs', False)
         self.action_buf = torch.zeros(
             (self.num_envs, 153), device=self.device, dtype=torch.float)
         self.mu_buf = torch.zeros(
@@ -99,12 +101,30 @@ class InterMimic_All(InterMimic):
     def _compute_observations_retarget(self, env_ids=None):
         if (env_ids is None):
             self._curr_ref_obs[:] = self.hoi_data_retarget[self.data_id[env_ids], self.progress_buf[env_ids]].clone()
-            self.obs_buf_retarget[:] = torch.cat((self._compute_observations_iter(self.hoi_data_retarget, None, 1), self._compute_observations_iter(self.hoi_data_retarget, None, 16)), dim=-1)
+            if self.use_transformer_obs:
+                # Transformer: 4 time steps (0, 1, 4, 16) for student policy
+                obs_t0 = self._compute_observations_iter(self.hoi_data_retarget, None, 0)
+                obs_t1 = self._compute_observations_iter(self.hoi_data_retarget, None, 1)
+                obs_t4 = self._compute_observations_iter(self.hoi_data_retarget, None, 4)
+                obs_t16 = self._compute_observations_iter(self.hoi_data_retarget, None, 16)
+                self.obs_buf_retarget[:] = torch.cat((obs_t0, obs_t1, obs_t4, obs_t16), dim=-1)
+            else:
+                # MLP: 2 time steps (1, 16)
+                self.obs_buf_retarget[:] = torch.cat((self._compute_observations_iter(self.hoi_data_retarget, None, 1), self._compute_observations_iter(self.hoi_data_retarget, None, 16)), dim=-1)
 
         else:
             self._curr_ref_obs[env_ids] = self.hoi_data_retarget[self.data_id[env_ids], self.progress_buf[env_ids]].clone()
-            self.obs_buf_retarget[env_ids] = torch.cat((self._compute_observations_iter(self.hoi_data_retarget, env_ids, 1), self._compute_observations_iter(self.hoi_data_retarget, env_ids, 16)), dim=-1)
-            
+            if self.use_transformer_obs:
+                # Transformer: 4 time steps (0, 1, 4, 16) for student policy
+                obs_t0 = self._compute_observations_iter(self.hoi_data_retarget, env_ids, 0)
+                obs_t1 = self._compute_observations_iter(self.hoi_data_retarget, env_ids, 1)
+                obs_t4 = self._compute_observations_iter(self.hoi_data_retarget, env_ids, 4)
+                obs_t16 = self._compute_observations_iter(self.hoi_data_retarget, env_ids, 16)
+                self.obs_buf_retarget[env_ids] = torch.cat((obs_t0, obs_t1, obs_t4, obs_t16), dim=-1)
+            else:
+                # MLP: 2 time steps (1, 16)
+                self.obs_buf_retarget[env_ids] = torch.cat((self._compute_observations_iter(self.hoi_data_retarget, env_ids, 1), self._compute_observations_iter(self.hoi_data_retarget, env_ids, 16)), dim=-1)
+
         return
     
     def _setup_character_props(self, key_bodies):

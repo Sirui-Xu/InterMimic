@@ -157,6 +157,12 @@ Download the [data from teacher's retargeting and correction](https://drive.goog
   sh isaacgym/scripts/train_student.sh
   ```
 
+To train with transformer network architecture:
+
+  ```bash
+  sh isaacgym/scripts/train_student_transformer.sh
+  ```
+
 ### Teacher Policy Inference
 
 
