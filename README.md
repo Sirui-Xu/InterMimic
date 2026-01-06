@@ -96,9 +96,11 @@
     $ISAACLAB_PATH/isaaclab.sh -p -m pip install --upgrade imageio imageio-ffmpeg
     ```
 
-#### Shared data
+#### Data
 
 - Download the [dataset](https://drive.google.com/file/d/141YoPOd2DlJ4jhU2cpZO5VU5GzV_lm5j/view?usp=sharing), unzip it, and move the extracted folder to `InterAct/OMOMO_new/`. *This build contains minor fixes to the original release, so your results may deviate slightly from those reported in the paper.*
+
+- 🔥 We recommend processing the data using our [InterAct](https://github.com/wzyabcas/InterAct) to obtain richer HOI MoCap data and higher-quality outputs than the original OMOMO dataset.
 
 ### Data Replay
 
