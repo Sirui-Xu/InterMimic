@@ -150,6 +150,41 @@ Open the training config, for example, [`omomo_train_new.yaml`](./isaacgym/src/i
    physicalBufferSize: <integer greater than 1>
    ```
 
+    **Troubleshooting:**
+
+    If you encounter the following import errors:
+
+    ```
+    ModuleNotFoundError: No module named 'isaaclab.sim.utils.prims'; 'isaaclab.sim.utils' is not a package
+    ```
+
+    or
+
+    ```
+    ImportError: cannot import name 'is_prim_path_valid' from 'isaaclab.sim.utils'
+    ```
+
+    This indicates that your IsaacLab version is outdated. The API has changed in newer versions of IsaacLab.
+
+    **Solution:**
+
+    Update the imports in `isaaclab/src/intermimic_lab/intermimic_env.py` (around line 19-21):
+
+    **Old (outdated):**
+    ```python
+    from isaaclab.sim.utils.prims import bind_visual_material, bind_physics_material, is_prim_path_valid
+    ```
+
+    **New (correct):**
+    ```python
+    from isaaclab.sim.utils import bind_visual_material, bind_physics_material
+    from isaacsim.core.utils.prims import is_prim_path_valid
+    ```
+
+    This change reflects the updated IsaacLab API structure where `bind_visual_material` and `bind_physics_material` are imported directly from `isaaclab.sim.utils`, while `is_prim_path_valid` has been moved to `isaacsim.core.utils.prims`.
+
+
+
 ### Student Policy Training
 
 
