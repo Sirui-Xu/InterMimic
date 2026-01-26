@@ -84,7 +84,7 @@
 
 #### Isaac Lab environment
 
-- Install Isaac Lab separately by following the [official guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html) and keep that environment isolated (typically via Isaac Sim’s python or the provided uv/conda env).
+- Install Isaac Lab separately by following the [official guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html) and keep that environment isolated (typically via Isaac Sim’s python or the provided uv/conda env). Recommended version: Isaac Sim 5.1.0 with IsaacLab v2.3.1
 - Export `ISAACLAB_PATH` once per shell session so our helper scripts (which source `$ISAACLAB_PATH/isaaclab.sh`) can locate your install:
 
     ```bash
@@ -149,8 +149,6 @@ Open the training config, for example, [`omomo_train_new.yaml`](./isaacgym/src/i
    ```yaml
    physicalBufferSize: <integer greater than 1>
    ```
-
-Recommended version: Isaac Sim 5.1.0 with IsaacLab v2.3.1
 
 ### Student Policy Training
 
