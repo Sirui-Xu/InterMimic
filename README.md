@@ -150,6 +150,8 @@ Open the training config, for example, [`omomo_train_new.yaml`](./isaacgym/src/i
    physicalBufferSize: <integer greater than 1>
    ```
 
+Recommended version: Isaac Sim 5.1.0 with IsaacLab v2.3.1
+
 ### Student Policy Training
 
 
