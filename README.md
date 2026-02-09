@@ -43,9 +43,9 @@
 </p>
 
 ## 🔥 News
-- **[2026-02-09]** 🚀 Multi-GPU training support is here! Train faster with distributed training across multiple GPUs.
+- **[2026-02-09]** 🚀 Multi-GPU training support is here!
 - **[2025-12-17]** 🚀 Isaac Gym checkpoints are compatible with IsaacLab inference?! Check out the newly released implementation.
-- **[2025-12-15]** 🚀 IsaacLab support is underway! Data replay is ready—more coming in the next release ☕️
+- **[2025-12-15]** IsaacLab support is underway! Data replay is ready—more coming in the next release ☕️
 - **[2025-12-07]** 🚀 Release a data conversion pipeline for bringing [InterAct](https://github.com/wzyabcas/InterAct) into simulation. The processing code is available in the [InterAct repository](https://github.com/wzyabcas/InterAct).
 - **[2025-06-10]** Release the instruction for the student policy inference.
 - **[2025-06-03]** Initial release of PSI and the processed data. Next release: teacher policy inference for [dynamics-aware retargeting](InterAct/OMOMO_retarget), and student policy inference.
