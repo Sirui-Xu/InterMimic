@@ -81,7 +81,7 @@ class InterMimic_All(InterMimic):
         motion_file_retarget = sorted([data_path for data_path in motion_file_retarget if data_path.split('_')[0] in cfg['env']['dataSub']])
         self.motion_file_retarget = [os.path.join(self.motion_file_retarget, data_path) for data_path in motion_file_retarget]
         self.num_motions = len(self.motion_file_retarget)
-        self.dataset_index = to_torch([int(data_path.split('/')[-1].split('_')[0][3:]) for data_path in self.motion_file_retarget], dtype=torch.long).cuda()
+        self.dataset_index = to_torch([int(data_path.split('/')[-1].split('_')[0][3:]) for data_path in self.motion_file_retarget], dtype=torch.long, device=self.device)
         # self.motion_file = sorted([os.path.join(self.motion_file, data_path) for data_path in motion_file if data_path.split('_')[0] in ['sub9']])
         # super().__init__(cfg=cfg,
         #                         sim_params=sim_params,
@@ -91,7 +91,7 @@ class InterMimic_All(InterMimic):
         #                         headless=headless)
         object_name = [motion_example.split('_')[-2] for motion_example in self.motion_file_retarget]
         self.motion_file = [os.path.join(cfg['env']['motion_file'], data_path) for data_path in motion_file_retarget]
-        self.object_id = to_torch([self.object_name.index(name) for name in object_name], dtype=torch.long).cuda()
+        self.object_id = to_torch([self.object_name.index(name) for name in object_name], dtype=torch.long, device=self.device)
         self.obj2motion = torch.stack([self.object_id == k for k in range(len(self.object_name))], dim=0)
         self.hoi_data = self._load_motion(self.motion_file, startk=1)
         self.hoi_data_retarget = self._load_motion(self.motion_file_retarget, startk=1)

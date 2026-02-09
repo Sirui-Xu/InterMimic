@@ -12,8 +12,13 @@ from .humanoid import *
 
 class Humanoid_G1(Humanoid_SMPLX):
     def __init__(self, cfg, sim_params, physics_engine, device_type, device_id, headless):
-        self._key_body_ids_gt = to_torch(cfg["env"]["keyIndex"], device='cuda', dtype=torch.long)
-        self._contact_body_ids_gt = to_torch(cfg["env"]["contactIndex"], device='cuda', dtype=torch.long)
+        # Construct device string before super().__init__() since self.device is set there
+        if device_type == "cuda" or device_type == "GPU":
+            device = "cuda:" + str(device_id)
+        else:
+            device = "cpu"
+        self._key_body_ids_gt = to_torch(cfg["env"]["keyIndex"], device=device, dtype=torch.long)
+        self._contact_body_ids_gt = to_torch(cfg["env"]["contactIndex"], device=device, dtype=torch.long)
         super().__init__(cfg=cfg,
                          sim_params=sim_params,
                          physics_engine=physics_engine,

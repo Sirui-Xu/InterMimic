@@ -43,6 +43,7 @@
 </p>
 
 ## 🔥 News
+- **[2026-02-09]** 🚀 Multi-GPU training support is here! Train faster with distributed training across multiple GPUs.
 - **[2025-12-17]** 🚀 Isaac Gym checkpoints are compatible with IsaacLab inference?! Check out the newly released implementation.
 - **[2025-12-15]** 🚀 IsaacLab support is underway! Data replay is ready—more coming in the next release ☕️
 - **[2025-12-07]** 🚀 Release a data conversion pipeline for bringing [InterAct](https://github.com/wzyabcas/InterAct) into simulation. The processing code is available in the [InterAct repository](https://github.com/wzyabcas/InterAct).
@@ -165,6 +166,45 @@ To train with transformer network architecture:
   sh isaacgym/scripts/train_student_transformer.sh
   ```
 
+### 🔥 Multi-GPU Training
+
+For faster training with multiple GPUs, we provide multi-GPU versions of the training scripts. These scripts use `torchrun` to launch distributed training across all available GPUs.
+
+**Teacher Policy (Multi-GPU)**
+
+```bash
+# Uses all available GPUs by default
+sh isaacgym/scripts/train_teacher_multigpu.sh
+
+# High-fidelity simulation variant
+sh isaacgym/scripts/train_teacher_new_multigpu.sh
+```
+
+**Student Policy (Multi-GPU)**
+
+```bash
+# MLP-based student policy
+sh isaacgym/scripts/train_student_multigpu.sh
+
+# Transformer-based student policy
+sh isaacgym/scripts/train_student_transformer_multigpu.sh
+```
+
+**Specifying the Number of GPUs**
+
+By default, all available GPUs are used. To specify a different number:
+
+```bash
+NUM_GPUS=2 sh isaacgym/scripts/train_teacher_multigpu.sh
+```
+
+**Training Hyperparameters for Multi-GPU**
+
+With multi-GPU training, gradients are averaged across all GPUs, so each update step effectively processes more data. You may want to adjust the following in your training config (e.g., `omomo.yaml`):
+
+- **`mini_epochs`**: can be reduced
+- **`minibatch_size`**: can be reduced
+
 ### Teacher Policy Inference
 
 
@@ -236,8 +276,8 @@ Alternatively, you may try one of our pre-trained [checkpoints](https://drive.go
 - [x] Distilled reference data (physically correct HOI data❗️)
 - [x] Release all related checkpoints   
 - [x] Release all data and processing scripts alongside the [InterAct](https://github.com/wzyabcas/InterAct) launch  
-- [ ] Release physics-based text-to-HOI and interaction prediction demo  
-
+- [x] Release multigpu pipeline  
+- [ ] Release the retargeting as tracking for humanoid-object interaction 
 
 ## 🔗 Citation
 

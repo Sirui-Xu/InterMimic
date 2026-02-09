@@ -48,14 +48,19 @@ class InterMimic(Humanoid_SMPLX):
         self.motion_file = sorted([os.path.join(self.motion_file, data_path) for data_path in motion_file if data_path.split('_')[0] in cfg['env']['dataSub']])
         self.object_name = [motion_example.split('_')[-2] for motion_example in self.motion_file]
         object_name_set = sorted(list(set(self.object_name)))
-        self.object_id = to_torch([object_name_set.index(name) for name in self.object_name], dtype=torch.long).cuda()
+        # Construct device string before super().__init__() since self.device is set there
+        if device_type == "cuda" or device_type == "GPU":
+            self._init_device = "cuda:" + str(device_id)
+        else:
+            self._init_device = "cpu"
+        self.object_id = to_torch([object_name_set.index(name) for name in self.object_name], dtype=torch.long).to(self._init_device)
         self.obj2motion = torch.stack([self.object_id == k for k in range(len(object_name_set))], dim=0)
         self.object_name = object_name_set
         self.robot_type = cfg['env']['robotType']
         self.object_density = cfg['env']['objectDensity']
         self.ref_hoi_obs_size = 7 + 51 * 6 + 52 * 13 + 13 + 52 * 3 + 52 + 1
         self.num_motions = len(self.motion_file)
-        self.dataset_index = to_torch([int(data_path.split('/')[-1].split('_')[0][3:]) for data_path in self.motion_file], dtype=torch.long).cuda()
+        self.dataset_index = to_torch([int(data_path.split('/')[-1].split('_')[0][3:]) for data_path in self.motion_file], dtype=torch.long).to(self._init_device)
 
         super().__init__(cfg=cfg,
                          sim_params=sim_params,
@@ -100,34 +105,38 @@ class InterMimic(Humanoid_SMPLX):
         if type(motion_file) != type([]):
             motion_file = [motion_file]
         max_episode_length = []
+        # Process data on CPU first, then move to GPU at the end
+        object_points_cpu = self.object_points.cpu()
+        object_id_cpu = self.object_id.cpu()
+
         for idx, data_path in enumerate(motion_file):
             loaded_dict = {}
             hoi_data = torch.load(data_path)[startk:]
-            loaded_dict['hoi_data'] = hoi_data.detach().to('cuda')
+            loaded_dict['hoi_data'] = hoi_data.detach()  # Keep on CPU for processing
 
-        
+
             max_episode_length.append(loaded_dict['hoi_data'].shape[0])
             self.fps_data = 30.
 
             loaded_dict['root_pos'] = loaded_dict['hoi_data'][:, 0:3].clone()
             loaded_dict['root_pos_vel'] = (loaded_dict['root_pos'][1:,:].clone() - loaded_dict['root_pos'][:-1,:].clone())*self.fps_data
-            loaded_dict['root_pos_vel'] = torch.cat((torch.zeros((1, loaded_dict['root_pos_vel'].shape[-1])).to('cuda'),loaded_dict['root_pos_vel']),dim=0)
+            loaded_dict['root_pos_vel'] = torch.cat((torch.zeros((1, loaded_dict['root_pos_vel'].shape[-1])),loaded_dict['root_pos_vel']),dim=0)
 
             loaded_dict['root_rot'] = loaded_dict['hoi_data'][:, 3:7].clone()
             root_rot_exp_map = torch_utils.quat_to_exp_map(loaded_dict['root_rot'])
             loaded_dict['root_rot_vel'] = (root_rot_exp_map[1:,:].clone() - root_rot_exp_map[:-1,:].clone())*self.fps_data
-            loaded_dict['root_rot_vel'] = torch.cat((torch.zeros((1, loaded_dict['root_rot_vel'].shape[-1])).to('cuda'),loaded_dict['root_rot_vel']),dim=0)
+            loaded_dict['root_rot_vel'] = torch.cat((torch.zeros((1, loaded_dict['root_rot_vel'].shape[-1])),loaded_dict['root_rot_vel']),dim=0)
 
             loaded_dict['dof_pos'] = loaded_dict['hoi_data'][:, 9:9+153].clone()
 
             loaded_dict['dof_vel'] = []
 
             loaded_dict['dof_vel'] = (loaded_dict['dof_pos'][1:,:].clone() - loaded_dict['dof_pos'][:-1,:].clone())*self.fps_data
-            loaded_dict['dof_vel'] = torch.cat((torch.zeros((1, loaded_dict['dof_vel'].shape[-1])).to('cuda'),loaded_dict['dof_vel']),dim=0)
+            loaded_dict['dof_vel'] = torch.cat((torch.zeros((1, loaded_dict['dof_vel'].shape[-1])),loaded_dict['dof_vel']),dim=0)
 
             loaded_dict['body_pos'] = loaded_dict['hoi_data'][:, 162: 162+52*3].clone()
             loaded_dict['body_pos_vel'] = (loaded_dict['body_pos'][1:,:].clone() - loaded_dict['body_pos'][:-1,:].clone())*self.fps_data
-            loaded_dict['body_pos_vel'] = torch.cat((torch.zeros((1, loaded_dict['body_pos_vel'].shape[-1])).to('cuda'),loaded_dict['body_pos_vel']),dim=0)
+            loaded_dict['body_pos_vel'] = torch.cat((torch.zeros((1, loaded_dict['body_pos_vel'].shape[-1])),loaded_dict['body_pos_vel']),dim=0)
 
             loaded_dict['obj_pos'] = loaded_dict['hoi_data'][:, 318:321].clone()
 
@@ -135,23 +144,23 @@ class InterMimic(Humanoid_SMPLX):
             if self.init_vel:
                 loaded_dict['obj_pos_vel'] = torch.cat((loaded_dict['obj_pos_vel'][:1],loaded_dict['obj_pos_vel']),dim=0)
             else:
-                loaded_dict['obj_pos_vel'] = torch.cat((torch.zeros((1, loaded_dict['obj_pos_vel'].shape[-1])).to('cuda'),loaded_dict['obj_pos_vel']),dim=0)
+                loaded_dict['obj_pos_vel'] = torch.cat((torch.zeros((1, loaded_dict['obj_pos_vel'].shape[-1])),loaded_dict['obj_pos_vel']),dim=0)
 
 
             loaded_dict['obj_rot'] = loaded_dict['hoi_data'][:, 321:325].clone()
             obj_rot_exp_map = torch_utils.quat_to_exp_map(loaded_dict['obj_rot'])
             loaded_dict['obj_rot_vel'] = (obj_rot_exp_map[1:,:].clone() - obj_rot_exp_map[:-1,:].clone())*self.fps_data
-            loaded_dict['obj_rot_vel'] = torch.cat((torch.zeros((1, loaded_dict['obj_rot_vel'].shape[-1])).to('cuda'),loaded_dict['obj_rot_vel']),dim=0)
+            loaded_dict['obj_rot_vel'] = torch.cat((torch.zeros((1, loaded_dict['obj_rot_vel'].shape[-1])),loaded_dict['obj_rot_vel']),dim=0)
 
-
-            obj_rot_extend = loaded_dict['obj_rot'].unsqueeze(1).repeat(1, self.object_points[self.object_id[idx]].shape[0], 1).view(-1, 4)
-            object_points_extend = self.object_points[self.object_id[idx]].unsqueeze(0).repeat(loaded_dict['obj_rot'].shape[0], 1, 1).view(-1, 3)
-            obj_points = torch_utils.quat_rotate(obj_rot_extend, object_points_extend).view(loaded_dict['obj_rot'].shape[0], self.object_points[self.object_id[idx]].shape[0], 3) + loaded_dict['obj_pos'].unsqueeze(1)
+            # Use CPU tensors for object points computation
+            obj_rot_extend = loaded_dict['obj_rot'].unsqueeze(1).repeat(1, object_points_cpu[object_id_cpu[idx]].shape[0], 1).view(-1, 4)
+            object_points_extend = object_points_cpu[object_id_cpu[idx]].unsqueeze(0).repeat(loaded_dict['obj_rot'].shape[0], 1, 1).view(-1, 3)
+            obj_points = torch_utils.quat_rotate(obj_rot_extend, object_points_extend).view(loaded_dict['obj_rot'].shape[0], object_points_cpu[object_id_cpu[idx]].shape[0], 3) + loaded_dict['obj_pos'].unsqueeze(1)
 
             ref_ig = compute_sdf(loaded_dict['body_pos'].view(max_episode_length[-1],52,3), obj_points).view(-1, 3)
             heading_rot = torch_utils.calc_heading_quat_inv(loaded_dict['root_rot'])
             heading_rot_extend = heading_rot.unsqueeze(1).repeat(1, loaded_dict['body_pos'].shape[1] // 3, 1).view(-1, 4)
-            ref_ig = quat_rotate(heading_rot_extend, ref_ig).view(loaded_dict['obj_rot'].shape[0], -1)    
+            ref_ig = quat_rotate(heading_rot_extend, ref_ig).view(loaded_dict['obj_rot'].shape[0], -1)
             loaded_dict['ig'] = ref_ig
             loaded_dict['contact_obj'] = torch.round(loaded_dict['hoi_data'][:, 330:331].clone())
             loaded_dict['contact_human'] = torch.round(loaded_dict['hoi_data'][:, 331:331+52].clone())
@@ -159,7 +168,7 @@ class InterMimic(Humanoid_SMPLX):
 
             human_rot_exp_map = torch_utils.quat_to_exp_map(loaded_dict['body_rot'].view(-1, 4)).view(-1, 52*3)
             loaded_dict['body_rot_vel'] = (human_rot_exp_map[1:,:].clone() - human_rot_exp_map[:-1,:].clone())*self.fps_data
-            loaded_dict['body_rot_vel'] = torch.cat((torch.zeros((1, loaded_dict['body_rot_vel'].shape[-1])).to('cuda'),loaded_dict['body_rot_vel']),dim=0)
+            loaded_dict['body_rot_vel'] = torch.cat((torch.zeros((1, loaded_dict['body_rot_vel'].shape[-1])),loaded_dict['body_rot_vel']),dim=0)
 
             loaded_dict['hoi_data'] = torch.cat((
                                                     loaded_dict['root_pos'].clone(), 
@@ -197,7 +206,7 @@ class InterMimic(Humanoid_SMPLX):
             hoi_refs.append(hoi_ref)
         max_length = max(max_episode_length) + initk
         self.num_motions = len(hoi_refs)
-        self.max_episode_length = to_torch(max_episode_length, dtype=torch.long) + initk
+        self.max_episode_length = to_torch(max_episode_length, dtype=torch.long, device=self.device) + initk
         hoi_data = []
         self.hoi_refs = []
         for i, data in enumerate(hoi_datas):
@@ -205,13 +214,14 @@ class InterMimic(Humanoid_SMPLX):
             padded_data = F.pad(data, pad_size, "constant", 0)
             hoi_data.append(padded_data)
             self.hoi_refs.append(F.pad(hoi_refs[i], pad_size, "constant", 0))
-        hoi_data = torch.stack(hoi_data, dim=0)
-        self.hoi_refs = torch.stack(self.hoi_refs, dim=0).unsqueeze(1).repeat(1, topk, 1, 1)
+        # Stack on CPU, then move to self.device
+        hoi_data = torch.stack(hoi_data, dim=0).to(self.device)
+        self.hoi_refs = torch.stack(self.hoi_refs, dim=0).unsqueeze(1).repeat(1, topk, 1, 1).to(self.device)
 
-        self.ref_reward = torch.zeros((self.hoi_refs.shape[0], self.hoi_refs.shape[1], self.hoi_refs.shape[2])).to(self.hoi_refs.device)
+        self.ref_reward = torch.zeros((self.hoi_refs.shape[0], self.hoi_refs.shape[1], self.hoi_refs.shape[2]), device=self.device)
         self.ref_reward[:, 0, :] = 1.0
 
-        self.ref_index = torch.zeros((self.num_envs, )).long().to(self.hoi_refs.device)
+        self.ref_index = torch.zeros((self.num_envs, ), dtype=torch.long, device=self.device)
 
         # Evaluation metrics tracking per sequence (only if evaluation is enabled)
         if self.enable_evaluation:
@@ -331,8 +341,8 @@ class InterMimic(Humanoid_SMPLX):
             while object_points.shape[0] < 1024:
                 object_points = torch.cat([object_points, object_points[:1024 - object_points.shape[0]]], dim=0)
             self.object_points.append(to_torch(object_points))
-        
-        self.object_points = torch.stack(self.object_points, dim=0)
+
+        self.object_points = torch.stack(self.object_points, dim=0).to(self.device)
         return
 
     def _build_target(self, env_id, env_ptr):

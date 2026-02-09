@@ -27,19 +27,21 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from rl_games.algos_torch import torch_ext
-from rl_games.common import a2c_common
+from . import a2c_common
 from isaacgym.torch_utils import *
 
 import numpy as np
 import torch 
 from torch import nn
-
+from torch.nn.parallel import DistributedDataParallel as DDP
+import math
 from . import intermimic_agent
 
 
 class InterMimicAgentDistill(intermimic_agent.InterMimicAgent):
     def __init__(self, base_name, config):
         super().__init__(base_name, config)
+        self.epoch_num_start = 0
         self.expert_loss_coef = config['expert_loss_coef']
         self.entropy_coef = config['entropy_coef']
         self.ev_ma            = 0.0   # running avg explained‑variance
@@ -216,7 +218,7 @@ class InterMimicAgentDistill(intermimic_agent.InterMimicAgent):
             rnn_masks = input_dict['rnn_masks']
             batch_dict['rnn_states'] = input_dict['rnn_states']
             batch_dict['seq_length'] = self.seq_len
-
+        self.optimizer.zero_grad(set_to_none=True)
         with torch.cuda.amp.autocast(enabled=self.mixed_precision):
             res_dict = self.model(batch_dict)
             action_log_probs = res_dict['prev_neglogp']
@@ -227,10 +229,14 @@ class InterMimicAgentDistill(intermimic_agent.InterMimicAgent):
 
             if rand_action_sum > 0:
                 a_info = self._actor_loss(old_action_log_probs_batch, action_log_probs, advantage, curr_e_clip)
-                a_loss = a_info['actor_loss']
+                a_loss_raw = a_info['actor_loss']
                 a_clipped = a_info['actor_clipped'].float()
+
                 c_info = self._critic_loss(value_preds_batch, values, curr_e_clip, return_batch, self.clip_value)
-                c_loss = c_info['critic_loss']
+                c_loss_raw = c_info['critic_loss']
+
+                b_loss_raw = self.bound_loss(mu)
+
 
                 if self.epoch_num > 7000:
                     returns_var = return_batch.var(unbiased=False) + 1e-8  # avoid divide‑by‑0
@@ -241,17 +247,17 @@ class InterMimicAgentDistill(intermimic_agent.InterMimicAgent):
                         self.critic_win_streak += 1
                     else:
                         self.critic_win_streak = 0
+                a_loss = self._loss_mean(a_loss_raw)
+                c_loss = self._loss_mean(c_loss_raw)
+                b_loss = self._loss_mean(b_loss_raw)
                         
-                b_loss = self.bound_loss(mu)
-                
-                c_loss = torch.mean(c_loss)
+                entropy = self._loss_mean(entropy)
+                a_clip_frac = self._loss_mean(a_clipped) 
+
+
                 e_info = self._supervise_loss(mu, expert_mus)
-                e_loss = e_info['expert_loss']
-                a_loss = torch.sum(rand_action_mask * a_loss) / rand_action_sum
-                entropy = torch.sum(rand_action_mask * entropy) / rand_action_sum
-                b_loss = torch.sum(rand_action_mask * b_loss) / rand_action_sum
-                a_clip_frac = torch.sum(rand_action_mask * a_clipped) / rand_action_sum
-                e_loss = torch.mean(e_loss)
+                e_loss_raw = e_info['expert_loss']
+                e_loss = self._loss_mean(e_loss_raw)
                 if self.epoch_num > 6000 and self.critic_win_streak >= 3:
                     loss = a_loss * min((self.actor_update_num / 4000), 1) + self.critic_coef * c_loss + self.bounds_loss_coef * b_loss + self.expert_loss_coef * e_loss * max(1 - (self.actor_update_num / 4000), 0.1)
                     self.actor_update_num += 1
@@ -262,8 +268,8 @@ class InterMimicAgentDistill(intermimic_agent.InterMimicAgent):
                 
             else:
                 e_info = self._supervise_loss(mu, expert_mus)
-                e_loss = e_info['expert_loss']
-                e_loss = torch.mean(e_loss)
+                e_loss_raw = e_info['expert_loss']
+                e_loss = self._loss_mean(e_loss_raw)
                 loss = self.expert_loss_coef * e_loss
             
             a_info['actor_loss'] = a_loss
@@ -277,22 +283,11 @@ class InterMimicAgentDistill(intermimic_agent.InterMimicAgent):
 
         self.scaler.scale(loss).backward()
         if self.truncate_grads:
-            if self.multi_gpu:
-                self.optimizer.synchronize()
-                self.scaler.unscale_(self.optimizer)
-                nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_norm)
-                with self.optimizer.skip_synchronize():
-                    self.scaler.step(self.optimizer)
-                    self.scaler.update()
-            else:
-                self.scaler.unscale_(self.optimizer)
-                nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_norm)
-                self.scaler.step(self.optimizer)
-                self.scaler.update()    
-        else:
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
+            self.scaler.unscale_(self.optimizer)
+            nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_norm)
 
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
         with torch.no_grad():
             reduce_kl = not self.is_rnn
             kl_dist = torch_ext.policy_kl(mu.detach(), sigma.detach(), old_mu_batch, old_sigma_batch, reduce_kl)

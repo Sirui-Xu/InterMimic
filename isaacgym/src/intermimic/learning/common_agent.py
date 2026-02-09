@@ -31,18 +31,41 @@ import time
 import signal
 from rl_games.algos_torch import a2c_continuous
 from rl_games.algos_torch import torch_ext
-from rl_games.algos_torch import central_value
+from . import central_value
 from rl_games.algos_torch.running_mean_std import RunningMeanStd
-from rl_games.common import a2c_common
+from . import a2c_common
 
 import torch
 from torch import optim
 
 from . import amp_datasets as amp_datasets
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 from tensorboardX import SummaryWriter
 
 global terminate_flag
+
+
+class DDPWrapper:
+    """
+    A robust wrapper for DDP that forwards attribute access to the
+    underlying model using composition instead of inheritance.
+    """
+    def __init__(self, module, *args, **kwargs):
+        # 1. Create and store the DDP model internally
+        self.ddp_model = DDP(module, *args, **kwargs)
+
+    def __getattr__(self, name):
+        # 2. Forward all attribute lookups to the original model,
+        #    which is stored in `self.ddp_model.module`.
+        #    This is only called for attributes not found on DDPWrapper itself.
+        return getattr(self.ddp_model.module, name)
+
+    def __call__(self, *args, **kwargs):
+        # 3. Forward the `forward()` call to the DDP model.
+        #    This is essential for `model(input)`.
+        return self.ddp_model(*args, **kwargs)
+
 
 class CommonAgent(a2c_continuous.A2CAgent):
     def __init__(self, base_name, config):
@@ -59,6 +82,15 @@ class CommonAgent(a2c_continuous.A2CAgent):
         net_config = self._build_net_config()
         self.model = self.network.build(net_config)
         self.model.to(self.ppo_device)
+        if self.multi_gpu:
+            self.model = DDPWrapper(
+                self.model,
+                device_ids=[self.local_rank],
+                output_device=self.local_rank,
+                broadcast_buffers=False,
+                gradient_as_bucket_view=True,
+                find_unused_parameters=False,   # set True only if you really need it
+            )
         self.states = None
 
         self.init_rnn_from_model(self.model)
@@ -202,6 +234,7 @@ class CommonAgent(a2c_continuous.A2CAgent):
     def set_full_state_weights(self, weights):
         self.set_weights(weights)
         self.epoch_num = weights['epoch']
+        self.epoch_num_start = weights['epoch']
         if self.has_central_value:
             self.central_value_net.load_state_dict(weights['assymetric_vf_nets'])
         self.optimizer.load_state_dict(weights['optimizer'])

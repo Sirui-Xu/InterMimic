@@ -198,7 +198,7 @@ def get_args(benchmark=False):
             "help": "Path to the saved weights, only for rl_games RL library"},
         {"name": "--headless", "action": "store_true", "default": False,
             "help": "Force display off at all times"},
-        {"name": "--horovod", "action": "store_true", "default": False,
+        {"name": "--multi_gpu", "action": "store_true", "default": False,
             "help": "Use horovod for multi-gpu training, have effect only with rl_games RL library"},
         {"name": "--task", "type": str, "default": "Humanoid",
             "help": "Can be BallBalance, Cartpole, CartpoleYUp, Ant, Humanoid, Anymal, FrankaCabinet, Quadcopter, ShadowHand, Ingenuity"},

@@ -51,34 +51,68 @@ cfg = None
 cfg_train = None
 
 def create_rlgpu_env(**kwargs):
-    use_horovod = cfg_train['params']['config'].get('multi_gpu', False)
-    if use_horovod:
-        import horovod.torch as hvd
+    """
+    Works for:
+      - Single GPU (python main.py ...)
+      - Multi-GPU via torchrun (one process per GPU)
 
-        rank = hvd.rank()
-        print("Horovod rank: ", rank)
+    Expects rl-games / your launcher to handle torch.distributed init.
+    """
+    import os
+    import torch
 
-        cfg_train['params']['seed'] = cfg_train['params']['seed'] + rank
+    # ----- detect rank/local_rank from torchrun -----
+    # Prefer torch.distributed if already initialized; otherwise use env vars.
+    rank = 0
+    local_rank = 0
 
+    if torch.distributed.is_available() and torch.distributed.is_initialized():
+        try:
+            rank = torch.distributed.get_rank()
+        except Exception:
+            rank = int(os.environ.get("RANK", 0))
+        local_rank = int(os.environ.get("LOCAL_RANK", rank))
+    else:
+        # torchrun always sets these; fall back to 0 for single-GPU runs
+        rank = int(os.environ.get("RANK", 0))
+        local_rank = int(os.environ.get("LOCAL_RANK", 0))
+
+    # ----- per-rank seeding & device binding -----
+    # mirror the old behavior: seed += rank
+    cfg_train['params']['seed'] = cfg_train['params']['seed'] + rank
+
+    # bind this process to its GPU
+    if torch.cuda.is_available():
+        torch.cuda.set_device(local_rank)
         args.device = 'cuda'
-        args.device_id = rank
-        args.rl_device = 'cuda:' + str(rank)
-
+        args.device_id = local_rank
+        args.rl_device = f'cuda:{local_rank}'
         cfg['rank'] = rank
-        cfg['rl_device'] = 'cuda:' + str(rank)
+        cfg['rl_device'] = f'cuda:{local_rank}'
+    else:
+        # Isaac Gym expects CUDA; this is just a safe fallback
+        args.device = 'cpu'
+        args.device_id = -1
+        args.rl_device = 'cpu'
+        cfg['rank'] = rank
+        cfg['rl_device'] = 'cpu'
 
+    # ----- build sim & env -----
     sim_params = parse_sim_params(args, cfg, cfg_train)
     task, env = parse_task(args, cfg, cfg_train, sim_params)
 
+    print('rank:', rank, ' local_rank:', local_rank)
     print('num_envs: {:d}'.format(env.num_envs))
     print('num_actions: {:d}'.format(env.num_actions))
     print('num_obs: {:d}'.format(env.num_obs))
     print('num_states: {:d}'.format(env.num_states))
-    
+
+    # optional frame stacking
     frames = kwargs.pop('frames', 1)
     if frames > 1:
         env = wrappers.FrameStack(env, frames, False)
     return env
+
 
 
 class RLGPUAlgoObserver(AlgoObserver):
@@ -190,8 +224,7 @@ def main():
 
     cfg_train['params']['seed'] = set_seed(cfg_train['params'].get("seed", -1), cfg_train['params'].get("torch_deterministic", False))
 
-    if args.horovod:
-        cfg_train['params']['config']['multi_gpu'] = args.horovod
+    cfg_train['params']['config']['multi_gpu'] = args.multi_gpu
 
     if args.horizon_length != -1:
         cfg_train['params']['config']['horizon_length'] = args.horizon_length

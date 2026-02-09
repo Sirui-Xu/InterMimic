@@ -28,7 +28,7 @@
 
 from rl_games.algos_torch.running_mean_std import RunningMeanStd
 from rl_games.algos_torch import torch_ext
-from rl_games.common import a2c_common
+from . import a2c_common
 import psutil
 import subprocess
 from isaacgym.torch_utils import *
@@ -39,29 +39,241 @@ import numpy as np
 from torch import optim
 import torch 
 from torch import nn
-
+import torch.distributed as dist
+import os
+from torch.nn.utils import clip_grad_norm_
 from . import common_agent
 
 from tensorboardX import SummaryWriter
 
 class InterMimicAgent(common_agent.CommonAgent):
     def __init__(self, base_name, config):
+        if config.get('multi_gpu', False):
+            # local rank of the GPU in a node
+            self.local_rank = int(os.getenv("LOCAL_RANK", "0"))
+            # global rank of the GPU
+            self.rank = int(os.getenv("RANK", "0"))
+            # total number of GPUs across all nodes
+            self.world_size = int(os.getenv("WORLD_SIZE", "1"))
+
+            dist.init_process_group("nccl", rank=self.rank, world_size=self.world_size)
+
+            self.device_name = 'cuda:' + str(self.local_rank)
+            config['device'] = self.device_name
+            if self.rank != 0:
+                config['print_stats'] = False
+                config['lr_schedule'] = None
         super().__init__(base_name, config)
 
         if self._normalize_input:
             self._input_mean_std = RunningMeanStd(self._amp_observation_space.shape).to(self.ppo_device)
         self.resume_from = config['resume_from']
         self.done_indices = []
-
+        self.epoch_num_start = 0
         return
+    
+    def trancate_gradients_and_step(self):
+        if self.multi_gpu:
+            # batch allreduce ops: see https://github.com/entity-neural-network/incubator/pull/220
+            all_grads_list = []
+            for param in self.model.parameters():
+                if param.grad is not None:
+                    all_grads_list.append(param.grad.view(-1))
 
+            all_grads = torch.cat(all_grads_list)
+            dist.all_reduce(all_grads, op=dist.ReduceOp.SUM)
+            offset = 0
+            for param in self.model.parameters():
+                if param.grad is not None:
+                    param.grad.data.copy_(
+                        all_grads[offset : offset + param.numel()].view_as(param.grad.data) / self.world_size
+                    )
+                    offset += param.numel()
+
+        if self.truncate_grads:
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.grad_norm)
+
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
+
+    def update_lr(self, lr):
+        if self.multi_gpu:
+            lr_tensor = torch.tensor([lr], device=self.device)
+            dist.broadcast(lr_tensor, 0)
+            lr = lr_tensor.item()
+
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] = lr
+
+        # if self.has_central_value:
+        #    self.central_value_net.update_lr(lr)
+                
+    def _maybe_init_ddp(self):
+        """Init torch.distributed if we're in multi-GPU mode and it's not up yet."""
+        if self.multi_gpu and dist.is_available() and not dist.is_initialized():
+            dist.init_process_group(backend="nccl")
+        # populate rank/world_size for convenience (works for single-GPU too)
+        if dist.is_available() and dist.is_initialized():
+            self.rank = dist.get_rank()
+            self.world_size = dist.get_world_size()
+        else:
+            self.rank = 0
+            self.world_size = 1
+
+    def _ddp_allreduce_scalar(self, val, op=dist.ReduceOp.SUM):
+        """All-reduce a Python number (int/float) and return the reduced Python number."""
+        if not (dist.is_available() and dist.is_initialized()):
+            return val
+        t = torch.tensor(float(val), device="cuda" if torch.cuda.is_available() else "cpu")
+        dist.all_reduce(t, op=op)
+        return t.item()
+
+    def _sync_stats_ddp(self, train_info):
+        """
+        Drop-in replacement for self.hvd.sync_stats(self).
+        - Aggregates numeric entries in train_info across ranks (mean by default).
+        - You can extend this to sync any custom buffers (rewards, lengths) if needed.
+        """
+        if not (self.multi_gpu and dist.is_available() and dist.is_initialized()):
+            return train_info
+
+        # Average numeric stats in train_info across ranks
+        world = float(self.world_size)
+        for k, v in list(train_info.items()):
+            if isinstance(v, (int, float)):
+                summed = self._ddp_allreduce_scalar(v, op=dist.ReduceOp.SUM)
+                train_info[k] = summed / world
+
+        # (Optional) If you have buffers/trackers that need syncing, do it here.
+        # Example stubs:
+        # if hasattr(self.game_rewards, "sync_ddp"): self.game_rewards.sync_ddp()
+        # if hasattr(self.game_lengths, "sync_ddp"): self.game_lengths.sync_ddp()
+
+        return train_info
+
+    def _ddp_average_value(self, x):
+        """Average a scalar tensor across ranks (no-op if not distributed)."""
+        if not (self.multi_gpu and dist.is_available() and dist.is_initialized()):
+            return x
+        t = x.detach().clone()
+        dist.all_reduce(t, op=dist.ReduceOp.SUM)
+        t /= dist.get_world_size()
+        return t
+    
     def train(self):
         if self.resume_from != 'None':
             try:
                 self.restore(self.resume_from)
             except:
                 print('Failed to restore from checkpoint')
-        super().train()
+
+        self.init_tensors()
+        self.last_mean_rewards = -100500
+        start_time = time.time()
+        total_time = 0
+        rep_count = 0
+        self.frame = 0
+
+        self.obs = self.env_reset()
+        self.curr_frames = self.batch_size_envs
+
+        model_output_file = os.path.join(self.nn_dir, self.config['name'])
+
+        # --- NEW: init/process DDP world (no Horovod) ---
+        self._maybe_init_ddp()
+
+        self._init_train()
+        if self.multi_gpu:
+            torch.cuda.set_device(self.local_rank)
+            print("====================broadcasting parameters")
+            model_params = [self.model.state_dict()]
+            if self.has_central_value:
+                model_params.append(self.central_value_net.state_dict())
+            dist.broadcast_object_list(model_params, 0)
+            self.model.load_state_dict(model_params[0])
+            if self.has_central_value:
+                self.central_value_net.load_state_dict(model_params[1])
+                
+        while True:
+            epoch_num = self.update_epoch()
+            train_info = self.train_epoch()  # core
+
+            # --- NEW: sync stats across ranks (replacement for hvd.sync_stats) ---
+            train_info = self._sync_stats_ddp(train_info)
+
+            sum_time = train_info['total_time']
+            total_time += sum_time
+            frame = self.frame
+            should_exit = False
+            if self.epoch_num - self.epoch_num_start < 5:
+                continue
+            # Log/save only on rank 0
+            if self.rank == 0:
+                scaled_time = sum_time
+                scaled_play_time = train_info['play_time']
+                curr_frames = self.curr_frames
+
+                # If each rank collects the same number of frames, the *global* frames this epoch is:
+                #   global_curr_frames = curr_frames * self.world_size
+                # If instead your code already accumulates global frames elsewhere, keep as-is.
+                global_curr_frames = curr_frames * (self.world_size if self.multi_gpu else 1)
+                self.frame += global_curr_frames
+
+                if self.print_stats:
+                    fps_step = global_curr_frames / scaled_play_time
+                    fps_total = global_curr_frames / scaled_time
+                    print(
+                        f"epoch_num:{epoch_num} mean_rewards:{self._get_mean_rewards()} "
+                        f"fps step: {fps_step:.1f} fps total: {fps_total:.1f}"
+                    )
+
+                self.writer.add_scalar('performance/total_fps', global_curr_frames / scaled_time, self.frame)
+                self.writer.add_scalar('performance/step_fps',  global_curr_frames / scaled_play_time, self.frame)
+                self.writer.add_scalar('info/epochs', epoch_num, self.frame)
+                self._log_train_info(train_info, self.frame)
+
+                self.algo_observer.after_print_stats(self.frame, epoch_num, total_time)
+
+                if self.game_rewards.current_size > 0:
+                    mean_rewards = self._get_mean_rewards()
+                    mean_lengths = self.game_lengths.get_mean()
+
+                    for i in range(self.value_size):
+                        self.writer.add_scalar(f'rewards{i}/frame', mean_rewards[i], self.frame)
+                        self.writer.add_scalar(f'rewards{i}/iter',  mean_rewards[i], epoch_num)
+                        self.writer.add_scalar(f'rewards{i}/time',  mean_rewards[i], total_time)
+
+                    self.writer.add_scalar('episode_lengths/frame', mean_lengths, self.frame)
+                    self.writer.add_scalar('episode_lengths/iter',  mean_lengths, epoch_num)
+
+                    if self.has_self_play_config:
+                        self.self_play_manager.update(self)
+
+                if self.save_freq > 0 and (epoch_num % self.save_freq == 0):
+                    self.save(model_output_file)
+                    if self._save_intermediate:
+                        int_model_output_file = model_output_file + '_' + str(epoch_num).zfill(8)
+                        self.save(int_model_output_file)
+
+                if epoch_num > self.max_epochs:
+                    self.save(model_output_file)
+                    print('MAX EPOCHS NUM!')
+                    should_exit = True
+
+            # Optional: keep ranks in step before next epoch (helps around save/checkpoint)
+            if self.multi_gpu and dist.is_available() and dist.is_initialized():
+                dist.barrier()
+                
+            if self.multi_gpu:
+                should_exit_t = torch.tensor(should_exit, device=self.device).float()
+                dist.broadcast(should_exit_t, 0)
+                should_exit = should_exit_t.bool().item()
+            
+            if should_exit:
+                return self.last_mean_rewards, epoch_num
+        # not reached
+        return
 
     def init_tensors(self):
         super().init_tensors()
@@ -260,15 +472,12 @@ class InterMimicAgent(common_agent.CommonAgent):
         play_time_start = time.time()
 
         with torch.no_grad():
-            if self.is_rnn:
-                batch_dict = self.play_steps_rnn()
-            else:
-                batch_dict = self.play_steps() # sampling
+            batch_dict = self.play_steps_rnn() if self.is_rnn else self.play_steps()
 
         play_time_end = time.time()
         update_time_start = time.time()
         rnn_masks = batch_dict.get('rnn_masks', None)
-        
+
         self.set_train()
         self.prepare_dataset(batch_dict)
         self.algo_observer.after_steps()
@@ -277,42 +486,54 @@ class InterMimicAgent(common_agent.CommonAgent):
             self.train_central_value()
 
         train_info = None
-
         if self.is_rnn:
-            frames_mask_ratio = rnn_masks.sum().item() / (rnn_masks.nelement())
+            frames_mask_ratio = rnn_masks.sum().item() / rnn_masks.nelement()
             print(frames_mask_ratio)
 
-        for _ in range(0, self.mini_epochs_num):
-            ep_kls = []
+        epoch_kls = []
+
+        for _ in range(self.mini_epochs_num):
+            step_kls = []
+
             for i in range(len(self.dataset)):
-                curr_train_info = self.train_actor_critic(self.dataset[i]) # updating
-                
-                if self.schedule_type == 'legacy':  
+                curr_train_info = self.train_actor_critic(self.dataset[i])
+
+                if self.schedule_type == 'legacy':
+                    kl_step = curr_train_info['kl']
                     if self.multi_gpu:
-                        curr_train_info['kl'] = self.hvd.average_value(curr_train_info['kl'], 'ep_kls')
-                    self.last_lr, self.entropy_coef = self.scheduler.update(self.last_lr, self.entropy_coef, self.epoch_num, 0, curr_train_info['kl'].item())
+                        kl_step = self._ddp_average_value(kl_step)
+                        curr_train_info['kl'] = kl_step
+                    self.last_lr, self.entropy_coef = self.scheduler.update(
+                        self.last_lr, self.entropy_coef, self.epoch_num, 0, kl_step.item()
+                    )
                     self.update_lr(self.last_lr)
 
-                if (train_info is None):
-                    train_info = dict()
-                    for k, v in curr_train_info.items():
-                        train_info[k] = [v]
+                if train_info is None:
+                    train_info = {k: [v] for k, v in curr_train_info.items()}
                 else:
                     for k, v in curr_train_info.items():
                         train_info[k].append(v)
-            
-            av_kls = torch_ext.mean_list(train_info['kl'])
 
+                step_kls.append(curr_train_info['kl'])
+
+            av_kls = torch_ext.mean_list(step_kls)   # <---- back to torch_ext
             if self.schedule_type == 'standard':
                 if self.multi_gpu:
-                    av_kls = self.hvd.average_value(av_kls, 'ep_kls')
-                self.last_lr, self.entropy_coef = self.scheduler.update(self.last_lr, self.entropy_coef, self.epoch_num, 0, av_kls.item())
+                    av_kls = self._ddp_average_value(av_kls)
+                self.last_lr, self.entropy_coef = self.scheduler.update(
+                    self.last_lr, self.entropy_coef, self.epoch_num, 0, av_kls.item()
+                )
                 self.update_lr(self.last_lr)
 
+            epoch_kls.append(av_kls)
+
         if self.schedule_type == 'standard_epoch':
+            epoch_av_kl = torch_ext.mean_list(epoch_kls)  # <---- again use torch_ext
             if self.multi_gpu:
-                av_kls = self.hvd.average_value(torch_ext.mean_list(kls), 'ep_kls')
-            self.last_lr, self.entropy_coef = self.scheduler.update(self.last_lr, self.entropy_coef, self.epoch_num, 0, av_kls.item())
+                epoch_av_kl = self._ddp_average_value(epoch_av_kl)
+            self.last_lr, self.entropy_coef = self.scheduler.update(
+                self.last_lr, self.entropy_coef, self.epoch_num, 0, epoch_av_kl.item()
+            )
             self.update_lr(self.last_lr)
 
         update_time_end = time.time()
@@ -360,6 +581,8 @@ class InterMimicAgent(common_agent.CommonAgent):
             batch_dict['rnn_states'] = input_dict['rnn_states']
             batch_dict['seq_length'] = self.seq_len
 
+        # --- zero grads (DDP/AMP-safe) ---
+        self.optimizer.zero_grad(set_to_none=True)
         with torch.cuda.amp.autocast(enabled=self.mixed_precision):
             res_dict = self.model(batch_dict)
             action_log_probs = res_dict['prev_neglogp']
@@ -377,13 +600,13 @@ class InterMimicAgent(common_agent.CommonAgent):
 
             b_loss = self.bound_loss(mu)
             
-            c_loss = torch.mean(c_loss)
-            a_loss = torch.sum(rand_action_mask * a_loss) / rand_action_sum
-            entropy = torch.sum(rand_action_mask * entropy) / rand_action_sum
-            b_loss = torch.sum(rand_action_mask * b_loss) / rand_action_sum
-            a_clip_frac = torch.sum(rand_action_mask * a_clipped) / rand_action_sum
+            c_loss = self._loss_mean(c_loss)
+            a_loss = self._loss_mean(a_loss) 
+            entropy = self._loss_mean(entropy)
+            b_loss = self._loss_mean(b_loss)
+            a_clip_frac = self._loss_mean(a_clipped)
             
-            loss = a_loss + self.critic_coef * c_loss + self.bounds_loss_coef * b_loss
+            loss = a_loss + self.critic_coef * c_loss + self.bounds_loss_coef * b_loss # - entropy * self.entropy_coef
             
             a_info['actor_loss'] = a_loss
             a_info['actor_clip_frac'] = a_clip_frac
@@ -397,22 +620,11 @@ class InterMimicAgent(common_agent.CommonAgent):
 
         self.scaler.scale(loss).backward()
         if self.truncate_grads:
-            if self.multi_gpu:
-                self.optimizer.synchronize()
-                self.scaler.unscale_(self.optimizer)
-                nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_norm)
-                with self.optimizer.skip_synchronize():
-                    self.scaler.step(self.optimizer)
-                    self.scaler.update()
-            else:
-                self.scaler.unscale_(self.optimizer)
-                nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_norm)
-                self.scaler.step(self.optimizer)
-                self.scaler.update()    
-        else:
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
+            self.scaler.unscale_(self.optimizer)
+            nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_norm)
 
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
         with torch.no_grad():
             reduce_kl = not self.is_rnn
             kl_dist = torch_ext.policy_kl(mu.detach(), sigma.detach(), old_mu_batch, old_sigma_batch, reduce_kl)
@@ -431,6 +643,21 @@ class InterMimicAgent(common_agent.CommonAgent):
 
         return
 
+    def _ddp_allreduce_sum(self, t):
+        """All-reduce sum for a 0-D or 1-D tensor; returns a tensor."""
+        if dist.is_available() and dist.is_initialized():
+            dist.all_reduce(t, op=dist.ReduceOp.SUM)
+        return t
+
+    def _loss_mean(self, c_unreduced):
+        c_sum   = c_unreduced.reshape(-1).float().sum()
+        c_count = torch.tensor([c_unreduced.numel()], device=c_sum.device, dtype=torch.float32).sum()
+        if dist.is_available() and dist.is_initialized():
+            c_sum   = self._ddp_allreduce_sum(c_sum)
+            c_count = self._ddp_allreduce_sum(c_count)
+        c_loss = c_sum / c_count.clamp_min(1.0)
+        return c_loss
+    
     def _load_config_params(self, config):
         super()._load_config_params(config)
         
@@ -497,8 +724,7 @@ class InterMimicAgent(common_agent.CommonAgent):
     
     # Function to get GPU memory usage
     def get_gpu_memory_usage(self):
-        result = subprocess.run(['nvidia-smi', '--query-gpu=memory.used', '--format=csv,noheader,nounits'], stdout=subprocess.PIPE)
-        return int(result.stdout.decode().strip().split()[0])
+        return torch.cuda.memory_allocated() / 1e9
 
     def _log_train_info(self, train_info, frame):
         self.writer.add_scalar('performance/update_time', train_info['update_time'], frame)
