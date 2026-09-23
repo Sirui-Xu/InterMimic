@@ -1,0 +1,40 @@
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local logs and generated simulation output
+*.log
+recordings/
+videos/
+runs/
+outputs/
+
+# Local model checkpoints and weights
+*.pth
+*.pt
+*.ckpt
+smplx_teachers/
+checkpoints/
+
+# Isaac Sim / Isaac Lab generated lab3 asset conversions
+isaaclab/src/intermimic_lab/assets/usd/largetable/lab3_physical/
+isaaclab/src/intermimic_lab/assets/usd/largetable/lab3_physx/
+isaaclab/src/intermimic_lab/assets/usd/largetable/lab3_visual/
+isaaclab/src/intermimic_lab/assets/usd/largetable/largetable_1.000_1.000_1.000_visual.usd
+isaaclab/src/intermimic_lab/assets/usd/woodchair/lab3_physical/
+isaaclab/src/intermimic_lab/assets/usd/woodchair/lab3_visual/
+isaaclab/src/intermimic_lab/assets/usd/woodchair/woodchair_1.000_1.000_1.000_visual.usd
+
+# Local-only notes and screenshots
+/AGENTS.md
+/Snipaste_*.png
+
+# OS/editor files
+.DS_Store
+.idea/
+.vscode/
