@@ -277,7 +277,7 @@ Alternatively, you may try one of our pre-trained [checkpoints](https://drive.go
 - [x] Release all related checkpoints   
 - [x] Release all data and processing scripts alongside the [InterAct](https://github.com/wzyabcas/InterAct) launch  
 - [x] Release multigpu pipeline  
-- [ ] Release the retargeting as tracking for humanoid-object interaction 
+- [x] Release the retargeting as tracking for humanoid-object interaction on [ULTRA](https://github.com/Sirui-Xu/ULTRA)
 
 ## 🔗 Citation
 
